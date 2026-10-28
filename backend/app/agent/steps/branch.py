@@ -59,6 +59,11 @@ async def run_branch_round(
     previous_diff: str = "",
 ) -> dict[str, Any]:
     """Run K candidates in parallel, cancel losers as soon as one wins."""
+    import shutil
+    for old_fork in base_sandbox.root.glob("fork-*"):
+        if old_fork.is_dir():
+            shutil.rmtree(old_fork, ignore_errors=True)
+
     k = len(strategies)
     forks = base_sandbox.fork(k)
 

@@ -33,14 +33,13 @@ async def run_diagnose(
         query = f"python {external_match.group(1)} module usage fix"
         try:
             results = search_client.search(query)
-            search_used = True
-            if emit is not None:
-                await emit("search.result", {"query": query, "results": results, "used": True})
+            if emit is not None and results:
+                first = results[0] if isinstance(results[0], dict) else {}
+                title = str(first.get("title", f"Information about {external_match.group(1)}"))
+                url = str(first.get("url", "https://docs.python.org/3/"))
+                await emit("search.result", {"query": query, "title": title, "url": url, "used": True})
         except Exception:
             pass
-
-    if not search_used and emit is not None:
-        await emit("search.result", {"used": False})
 
     prompt = (
         f"Issue:\n{issue_text}\n\n"

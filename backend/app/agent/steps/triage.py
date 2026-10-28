@@ -43,12 +43,4 @@ async def run_triage(
         raise TriageError("NO_RELEVANT_FILES", "No relevant repository files found")
 
     selected = [str(p.relative_to(repo_dir)).replace("\\", "/") for p in ranked[:max_files]]
-
-    # Optionally invoke lightning model if client provided
-    if client is not None:
-        try:
-            await client.chat("triage", f"Issue: {issue_text}\nCandidate files: {json.dumps(selected)}")
-        except Exception:
-            pass
-
     return selected
