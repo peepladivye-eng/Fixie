@@ -20,6 +20,8 @@ def main() -> int:
     parser.add_argument("--frontend", action="store_true", help="also run frontend lint and build")
     args = parser.parse_args()
     py = sys.executable
+    import os
+    os.environ["PATH"] = f"{Path(py).parent}{os.pathsep}{os.environ.get('PATH', '')}"
     results = {
         "validate sample replay": run("validate", [py, "-m", "backend.tools.validate_events", "replays/sample_run.jsonl"]),
         "pytest": run("pytest", [py, "-m", "pytest", "-q"]),

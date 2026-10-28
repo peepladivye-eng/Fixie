@@ -6,8 +6,8 @@ import json
 import time
 from pathlib import Path
 
-import pytest
 import jsonschema
+import pytest
 
 from app.agent.context import build_context, extract_relevant_ast_snippets
 from app.agent.loop import run_agent_loop

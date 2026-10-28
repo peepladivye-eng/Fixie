@@ -100,7 +100,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def _execute(run_id: str, request: RunRequest, emitter: EventEmitter) -> None:
     try:
         if request.mode == "live":
-            await run_agent(request.source, emitter.emit, {"k_branches": 3, "max_rounds": 2})
+            await run_agent(request.source, emitter.emit, {"max_rounds": 2})
         else:
             await run_replay(request.source, emitter.emit, request.speed)
     except Exception as exc:

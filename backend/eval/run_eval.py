@@ -73,6 +73,60 @@ async def main(fixtures: bool = False, repeat: int = 1) -> None:
     OUTPUT.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
+def grade_with_hidden_tests(fixture_name: str, diff: str) -> bool:
+    """Grade a candidate patch against hidden tests in an isolated fresh copy."""
+    import shutil
+    import subprocess
+    import tempfile
+
+    app_dir = Path(__file__).resolve().parents[1]
+    candidates = [
+        app_dir / "tests" / "core" / "fixtures" / fixture_name,
+        app_dir / "eval" / "fixtures" / fixture_name,
+    ]
+    fixtures_dir = next((c for c in candidates if c.is_dir()), None)
+    if fixtures_dir is None:
+        raise FileNotFoundError(f"Fixture {fixture_name} not found")
+
+    repo_src = fixtures_dir / "repo"
+    hidden_src = fixtures_dir / "hidden_tests"
+
+    with tempfile.TemporaryDirectory(prefix="fixie-grade-") as tmp:
+        tmp_repo = Path(tmp) / "repo"
+        shutil.copytree(repo_src, tmp_repo)
+
+        # Apply candidate diff
+        patch_file = Path(tmp) / "patch.diff"
+        patch_file.write_text(diff, encoding="utf-8")
+        apply_res = subprocess.run(
+            ["git", "apply", "--no-index", "--ignore-space-change", "--whitespace=nowarn", str(patch_file)],
+            cwd=str(tmp_repo),
+            capture_output=True,
+            text=True,
+        )
+        if apply_res.returncode != 0:
+            return False
+
+        # Copy hidden tests into repo tests directory
+        if hidden_src.is_dir():
+            target_dir = tmp_repo / "tests" if (tmp_repo / "tests").is_dir() else tmp_repo
+            for item in hidden_src.glob("*.py"):
+                shutil.copy2(item, target_dir / item.name)
+
+        # Run pytest
+        env = os.environ.copy()
+        venv_scripts = str(Path(sys.executable).parent)
+        env["PATH"] = f"{venv_scripts}{os.pathsep}{env.get('PATH', '')}"
+        run_res = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q"],
+            cwd=str(tmp_repo),
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        return run_res.returncode == 0
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--fixtures", action="store_true")

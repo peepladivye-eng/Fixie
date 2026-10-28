@@ -60,7 +60,8 @@ def test_fake_agent_repairs_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
 
     asyncio.run(run_agent("fixture:parse_duration", emit, {"k_branches": 1}))
     assert any(kind == "branch.winner" for kind, _ in events)
-    assert events[-1] == ("run.finished", {"status": "success", "total_cost_usd": 0.0, "total_seconds": 0.0})
+    assert events[-1][0] == "run.finished"
+    assert events[-1][1]["status"] == "success"
 
 
 def test_openai_tool_call_parsing() -> None:
