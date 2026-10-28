@@ -1,0 +1,75 @@
+/* ==========================================================
+   Fixie Design Tokens
+   All color/font values flow from these variables.
+   Never hard-code hex values anywhere in the codebase.
+   ========================================================== */
+
+:root,
+.dark {
+  /* ── Background layers ── */
+  --background: #0B0D10;
+  --foreground: #E8EAED;
+  --surface: #12151A;
+
+  /* ── Borders ── */
+  --border: #1F242C;
+  --input: #1F242C;
+
+  /* ── Text ── */
+  --text: #E8EAED;
+  --text-muted: #9AA3AE;
+  --muted: #12151A;
+  --muted-foreground: #9AA3AE;
+
+  /* ── Fixie Specific Tokens ── */
+  --accent: #F5A524;
+  --accent-foreground: #0B0D10;
+  --pass: #3DD68C;
+  --fail: #F0616D;
+  --badge-blue: #6EA8FE;
+
+  /* ── Aliases with --color- prefix for Tailwind compatibility ── */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-pass: var(--pass);
+  --color-fail: var(--fail);
+  --color-badge-blue: var(--badge-blue);
+
+  /* ── shadcn UI Component Tokens ── */
+  --card: #12151A;
+  --card-foreground: #E8EAED;
+  --popover: #12151A;
+  --popover-foreground: #E8EAED;
+  --primary: #F5A524;
+  --primary-foreground: #0B0D10;
+  --secondary: #1F242C;
+  --secondary-foreground: #E8EAED;
+  --destructive: #F0616D;
+  --destructive-foreground: #E8EAED;
+  --ring: #F5A524;
+  --radius: 0.5rem;
+
+  /* ── Typography ── */
+  --font-sans: var(--font-geist-sans, 'Geist', ui-sans-serif, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono, 'JetBrains Mono', ui-monospace, monospace);
+
+  /* ── Spacing scale ── */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* ── Radius ── */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+}

@@ -1,0 +1,266 @@
+openapi: 3.0.3
+info:
+  title: Fixie API
+  version: 1.0.0
+  description: >
+    API contract for Fixie - Autonomous Bug Reproduction and Speculative Patch Engine.
+    Streams step timelines, terminal chunks, and branch candidate execution.
+paths:
+  /runs:
+    post:
+      summary: Start a new Fixie run
+      description: Initiates bug triage, reproduction, speculative branch patching, and delivery.
+      operationId: createRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - source
+                - mode
+              properties:
+                source:
+                  type: string
+                  description: GitHub issue URL (e.g. https://github.com/org/repo/issues/123) or benchmark instance_id.
+                  example: "https://github.com/pallets/click/issues/2104"
+                mode:
+                  type: string
+                  enum: [live, replay]
+                  description: Execution mode. Live runs sandbox execution; replay streams pre-recorded runs.
+                  example: "replay"
+      responses:
+        '201':
+          description: Run created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - run_id
+                properties:
+                  run_id:
+                    type: string
+                    example: "run_20261028_01"
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /runs/{id}:
+    get:
+      summary: Get run details
+      description: Returns run status, metadata, source, and summary metrics.
+      operationId: getRun
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique identifier of the run.
+      responses:
+        '200':
+          description: Run details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDetail'
+        '404':
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /runs/{id}/events:
+    get:
+      summary: Stream run events (SSE)
+      description: Server-Sent Events stream emitting all lifecycle events for the run.
+      operationId: streamRunEvents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique identifier of the run.
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Sequence number of the last received event for reconnection replay.
+      responses:
+        '200':
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Event payload serialized according to contracts/events.schema.json
+        '404':
+          description: Run not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /showcase:
+    get:
+      summary: List showcase runs
+      description: Returns curated runs available for instant replay and presentation.
+      operationId: listShowcaseRuns
+      responses:
+        '200':
+          description: List of showcase runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShowcaseItem'
+
+  /eval/summary:
+    get:
+      summary: Get evaluation benchmark summary
+      description: Aggregated benchmark metrics across evaluation suites (e.g. SWE-bench Lite / synthetic suites).
+      operationId: getEvalSummary
+      responses:
+        '200':
+          description: Evaluation summary metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalSummary'
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns service availability, sandbox/live execution enablement, and quota status.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service health and capability flags
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - live_enabled
+                  - daily_runs_left
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  live_enabled:
+                    type: boolean
+                    example: false
+                  daily_runs_left:
+                    type: integer
+                    example: 25
+
+components:
+  schemas:
+    RunDetail:
+      type: object
+      required:
+        - id
+        - source
+        - mode
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          example: "run_20261028_01"
+        source:
+          type: string
+          example: "https://github.com/pallets/click/issues/2104"
+        mode:
+          type: string
+          enum: [live, replay]
+          example: "replay"
+        status:
+          type: string
+          enum: [pending, running, success, failed]
+          example: "success"
+        issue_title:
+          type: string
+          example: "parse_duration('1h30m') yields 90 instead of 5400"
+        repo:
+          type: string
+          example: "sample-org/duration-parser"
+        total_cost_usd:
+          type: number
+          example: 0.089
+        total_seconds:
+          type: number
+          example: 88.5
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-28T09:00:00Z"
+
+    ShowcaseItem:
+      type: object
+      required:
+        - id
+        - title
+        - repo
+        - summary
+      properties:
+        id:
+          type: string
+          example: "run_20261028_01"
+        title:
+          type: string
+          example: "parse_duration('1h30m') yields 90 instead of 5400"
+        repo:
+          type: string
+          example: "sample-org/duration-parser"
+        summary:
+          type: string
+          example: "Hours were treated as minutes; fixed multiplier logic in unit parser."
+
+    EvalSummary:
+      type: object
+      required:
+        - total_instances
+        - resolved_instances
+        - resolution_rate
+        - avg_cost_usd
+        - avg_duration_seconds
+      properties:
+        total_instances:
+          type: integer
+          example: 30
+        resolved_instances:
+          type: integer
+          example: 24
+        resolution_rate:
+          type: number
+          example: 0.8
+        avg_cost_usd:
+          type: number
+          example: 0.091
+        avg_duration_seconds:
+          type: number
+          example: 92.4
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          example: "NOT_FOUND"
+        message:
+          type: string
+          example: "Resource not found"
