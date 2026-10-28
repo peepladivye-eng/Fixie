@@ -1,0 +1,8 @@
+{
+  "synthetic": true,
+  "generated_at": "2026-10-28T00:00:00+00:00",
+  "instances_total": 12,
+  "baseline": {"resolved": 8, "rounds": 12, "cost_usd": 0.0, "seconds": 1.2, "per_model": {"fake-lightning": {"input_tokens": 1440, "output_tokens": 480, "cost_usd": 0.0}}},
+  "branching": {"resolved": 11, "rounds": 12, "cost_usd": 0.0, "seconds": 1.8, "per_model": {"fake-lightning": {"input_tokens": 1440, "output_tokens": 480, "cost_usd": 0.0}}},
+  "results": []
+}
