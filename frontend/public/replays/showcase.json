@@ -1,0 +1,8 @@
+[
+  {
+    "id": "run_20261028_parse_duration",
+    "title": "parse_duration('1h30m') yields 90 instead of 5400",
+    "repo": "fast-utils/duration-parser",
+    "summary": "Fixed UNIT_MULTIPLIERS['h'] = 60 → 3600 in parser.py; branch-A won with 6/6 tests passing and a 3-line diff."
+  }
+]
