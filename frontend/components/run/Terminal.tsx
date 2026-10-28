@@ -52,14 +52,18 @@ function TermLine({ line }: { line: TerminalLine }) {
 const ALL_BRANCHES = "all";
 
 export default function Terminal({ state }: { state: RunState }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
   const branchIds = Object.keys(state.branches);
   const hasBranches = branchIds.length > 0;
   const [activeBranch, setActiveBranch] = useState<string>(ALL_BRANCHES);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [state.terminal]);
+  const handleScroll = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 40;
+    isAtBottomRef.current = atBottom;
+  };
 
   const nullLines: TerminalLine[] = state.terminal["null"] ?? [];
   const branchLines: TerminalLine[] =
@@ -70,6 +74,13 @@ export default function Terminal({ state }: { state: RunState }) {
   const visibleLines = activeBranch === ALL_BRANCHES
     ? [...nullLines, ...branchLines].sort((a, b) => a.ts.localeCompare(b.ts))
     : [...nullLines, ...branchLines];
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el && isAtBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [visibleLines.length]);
 
   const currentStep = state.current_step ?? "—";
 
@@ -119,13 +130,16 @@ export default function Terminal({ state }: { state: RunState }) {
       )}
 
       {/* scrollable log */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 min-h-0">
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-3 py-2 min-h-0"
+      >
         {visibleLines.length === 0 ? (
           <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>Waiting for output…</p>
         ) : (
           visibleLines.map((line, i) => <TermLine key={i} line={line} />)
         )}
-        <div ref={bottomRef} />
       </div>
     </div>
   );
