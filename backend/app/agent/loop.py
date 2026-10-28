@@ -90,6 +90,7 @@ async def run_agent_loop(
     options = options or {}
     max_rounds = int(options.get("max_rounds", 2))
     showcase = bool(options.get("showcase", False))
+    baseline = bool(options.get("baseline") or options.get("k_branches") == 1)
     run_id = str(options.get("run_id") or "run_live")
     raw_client = options.get("client") or configured_client()
     tracking_client = UsageTrackingClient(raw_client, emit, run_id=run_id)
@@ -160,7 +161,7 @@ async def run_agent_loop(
         last_diff = ""
 
         for round_idx in range(1, max_rounds + 1):
-            strategies = get_strategies_for_round(round_idx, showcase=showcase)
+            strategies = get_strategies_for_round(round_idx, showcase=showcase, baseline=baseline)
             t0 = time.monotonic()
             await emit("step.started", {"step": "branch", "model_tier": tier_for_role("branch")})
 

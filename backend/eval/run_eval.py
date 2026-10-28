@@ -1,30 +1,29 @@
 """Run baseline and branching evaluations, safely retaining completed instances."""
 from __future__ import annotations
 
-import asyncio
 import argparse
-import os
+import asyncio
+from datetime import datetime, timezone
 import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from collections import defaultdict
-from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-if os.getenv("FIXIE_FORCE_FAKE_RUNNER") == "1":
-    from app.fake_runner import run_agent
-else:
-    try:
-        from app.agent.runner import run_agent  # type: ignore[import-not-found]
-    except ImportError:
-        from app.fake_runner import run_agent
+from app.agent.runner import run_agent
 
 ROOT = Path(__file__).parent
 OUTPUT = ROOT / "eval.json"
 
 
-async def one_run(source: str, options: dict[str, int]) -> dict[str, Any]:
+async def one_run(source: str, options: dict[str, Any]) -> dict[str, Any]:
+    fixture_name = source.removeprefix("fixture:")
     events: list[dict[str, Any]] = []
     started = time.perf_counter()
 
@@ -32,53 +31,55 @@ async def one_run(source: str, options: dict[str, int]) -> dict[str, Any]:
         events.append({"type": event_type, "data": data})
 
     await run_agent(source, emit, options)
+
+    deliver = next((e for e in reversed(events) if e["type"] == "deliver.ready"), None)
+    winner_diff = deliver["data"].get("diff", "") if deliver else ""
+    resolved = False
+    if winner_diff:
+        try:
+            resolved = grade_with_hidden_tests(fixture_name, winner_diff)
+        except Exception:
+            resolved = False
+
     models: dict[str, dict[str, float]] = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0})
     for event in events:
         if event["type"] == "llm.usage":
-            usage, bucket = event["data"], models[event["data"]["model"]]
-            bucket["input_tokens"] += usage["input_tokens"]
-            bucket["output_tokens"] += usage["output_tokens"]
-            bucket["cost_usd"] += usage["cost_usd"]
-    finished = next((event for event in reversed(events) if event["type"] == "run.finished"), {"data": {"status": "failed"}})
-    return {"resolved": finished["data"].get("status") == "success", "rounds": sum(e["type"] == "step.started" and e["data"]["step"] == "branch" for e in events), "cost_usd": sum(v["cost_usd"] for v in models.values()), "seconds": time.perf_counter() - started, "per_model": dict(models)}
+            usage = event["data"]
+            bucket = models[usage.get("model", "unknown")]
+            bucket["input_tokens"] += int(usage.get("input_tokens", 0))
+            bucket["output_tokens"] += int(usage.get("output_tokens", 0))
+            bucket["cost_usd"] += float(usage.get("cost_usd", 0.0))
+
+    rounds = sum(1 for e in events if e["type"] == "step.started" and e["data"].get("step") == "branch")
+    return {
+        "resolved": resolved,
+        "rounds": max(1, rounds),
+        "cost_usd": round(sum(v["cost_usd"] for v in models.values()), 6),
+        "seconds": round(time.perf_counter() - started, 4),
+        "per_model": dict(models),
+    }
 
 
 def aggregate(items: list[dict[str, Any]]) -> dict[str, Any]:
     model: dict[str, dict[str, float]] = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0})
     for item in items:
-        for name, usage in item["per_model"].items():
-            for key in model[name]: model[name][key] += usage[key]
-    return {"resolved": sum(x["resolved"] for x in items), "rounds": sum(x["rounds"] for x in items), "cost_usd": sum(x["cost_usd"] for x in items), "seconds": sum(x["seconds"] for x in items), "per_model": dict(model)}
+        for name, usage in item.get("per_model", {}).items():
+            for key in ("input_tokens", "output_tokens", "cost_usd"):
+                model[name][key] += usage.get(key, 0.0)
 
-
-async def main(fixtures: bool = False, repeat: int = 1) -> None:
-    if fixtures:
-        if __import__("os").getenv("FIXIE_ALLOW_LOCAL") != "1":
-            raise RuntimeError("fixtures require FIXIE_ALLOW_LOCAL=1")
-        instances = [{"id": item.name, "source": f"fixture:{item.name}"} for item in sorted((ROOT / "fixtures").iterdir()) if item.is_dir()]
-    else:
-        instances = json.loads((ROOT / "instances.json").read_text(encoding="utf-8"))
-    previous = json.loads(OUTPUT.read_text(encoding="utf-8")) if OUTPUT.exists() else {"results": []}
-    completed = {item["id"]: item for item in previous.get("results", [])}
-    semaphore = asyncio.Semaphore(4)
-
-    async def evaluate(instance: dict[str, str]) -> dict[str, Any]:
-        if instance["id"] in completed: return completed[instance["id"]]
-        async with semaphore:
-            return {"id": instance["id"], "baseline": await one_run(instance["source"], {"k_branches": 1, "max_rounds": 2}), "branching": await one_run(instance["source"], {"k_branches": 3, "max_rounds": 2})}
-
-    expanded = [{**item, "id": f"{item['id']}#{number}"} for item in instances for number in range(repeat)]
-    results = await asyncio.gather(*(evaluate(item) for item in expanded))
-    report = {"synthetic": run_agent.__module__.endswith("fake_runner"), "instances_total": len(results), "baseline": aggregate([x["baseline"] for x in results]), "branching": aggregate([x["branching"] for x in results]), "results": results}
-    OUTPUT.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    total_cost = sum(x.get("cost_usd", 0.0) for x in items)
+    total_seconds = sum(x.get("seconds", 0.0) for x in items)
+    return {
+        "resolved": sum(1 for x in items if x.get("resolved")),
+        "rounds": sum(x.get("rounds", 0) for x in items),
+        "cost_usd": round(total_cost, 6),
+        "seconds": round(total_seconds, 4),
+        "per_model": dict(model),
+    }
 
 
 def grade_with_hidden_tests(fixture_name: str, diff: str) -> bool:
     """Grade a candidate patch against hidden tests in an isolated fresh copy."""
-    import shutil
-    import subprocess
-    import tempfile
-
     app_dir = Path(__file__).resolve().parents[1]
     candidates = [
         app_dir / "tests" / "core" / "fixtures" / fixture_name,
@@ -125,6 +126,60 @@ def grade_with_hidden_tests(fixture_name: str, diff: str) -> bool:
             env=env,
         )
         return run_res.returncode == 0
+
+
+async def main(fixtures: bool = False, repeat: int = 1) -> None:
+    os.environ["FIXIE_ALLOW_LOCAL"] = "1"
+    if fixtures:
+        instances = [{"id": item.name, "source": f"fixture:{item.name}"} for item in sorted((ROOT / "fixtures").iterdir()) if item.is_dir()]
+    else:
+        instances = json.loads((ROOT / "instances.json").read_text(encoding="utf-8"))
+
+    previous = json.loads(OUTPUT.read_text(encoding="utf-8")) if OUTPUT.exists() else {"results": []}
+    completed: dict[str, Any] = {item["id"]: item for item in previous.get("results", []) if "baseline" in item and "branching" in item}
+    semaphore = asyncio.Semaphore(4)
+
+    async def evaluate(instance: dict[str, str]) -> dict[str, Any]:
+        inst_id = instance["id"]
+        if inst_id in completed:
+            return completed[inst_id]
+
+        async with semaphore:
+            errors = 0
+            while errors < 2:
+                try:
+                    baseline_res = await one_run(instance["source"], {"baseline": True, "k_branches": 1, "max_rounds": 2})
+                    branching_res = await one_run(instance["source"], {"baseline": False, "k_branches": 3, "max_rounds": 2})
+                    res = {"id": inst_id, "baseline": baseline_res, "branching": branching_res}
+                    completed[inst_id] = res
+                    return res
+                except Exception as exc:
+                    errors += 1
+                    if errors >= 2:
+                        res = {
+                            "id": inst_id,
+                            "error": str(exc),
+                            "baseline": {"resolved": False, "rounds": 0, "cost_usd": 0.0, "seconds": 0.0, "per_model": {}},
+                            "branching": {"resolved": False, "rounds": 0, "cost_usd": 0.0, "seconds": 0.0, "per_model": {}},
+                        }
+                        completed[inst_id] = res
+                        return res
+
+    expanded = [{**item, "id": f"{item['id']}#{number}" if repeat > 1 else item["id"]} for item in instances for number in range(repeat)]
+    results = await asyncio.gather(*(evaluate(item) for item in expanded))
+
+    provider = os.getenv("LLM_PROVIDER", "fake").lower()
+    synthetic = (provider == "fake")
+    report = {
+        "synthetic": synthetic,
+        "provider": provider,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "instances_total": len(results),
+        "baseline": aggregate([x["baseline"] for x in results]),
+        "branching": aggregate([x["branching"] for x in results]),
+        "results": results,
+    }
+    OUTPUT.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
