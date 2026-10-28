@@ -98,45 +98,55 @@ function RunView({ runId }: { runId: string }) {
   if (fatalError) return <ErrorState message={fatalError} onRetry={() => window.location.reload()} />;
 
   return (
-    <>
-      <RunHeader state={state} speed={speed} paused={paused} onSpeed={changeSpeed} onTogglePause={togglePause} />
+    <div className="flex flex-col h-full w-full overflow-hidden">
+      {/* Fixed Header */}
+      <div className="flex-shrink-0">
+        <RunHeader state={state} speed={speed} paused={paused} onSpeed={changeSpeed} onTogglePause={togglePause} />
+      </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col lg:flex-row min-h-0">
-        {/* Left: Timeline */}
+      {/* Middle: 3 columns on desktop, tabs on mobile */}
+      <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col lg:flex-row">
+        {/* Left Column: Timeline (scrolls internally) */}
         <aside
-          className="lg:w-60 xl:w-64 flex-shrink-0 overflow-y-auto p-3"
+          className="lg:w-60 xl:w-64 flex-shrink-0 h-full overflow-y-auto p-3 hidden lg:block"
           style={{ borderRight: "1px solid var(--border)" }}
           aria-label="Step timeline"
         >
           <Timeline state={state} />
         </aside>
 
-        {/* Mobile: tabbed */}
+        {/* Mobile: tabbed layout */}
         <div className="lg:hidden flex-1 flex flex-col min-h-0 overflow-hidden">
           <MobileTabs state={state} />
         </div>
 
-        {/* Desktop: terminal + right panel */}
-        <div className="hidden lg:flex flex-1 min-w-0 min-h-0 overflow-hidden">
-          <main className="flex-1 p-3 min-h-0 flex flex-col min-w-0">
+        {/* Center & Right Columns on Desktop */}
+        <div className="hidden lg:flex flex-1 min-w-0 min-h-0 h-full overflow-hidden">
+          {/* Center Column: Terminal (scrolls internally) */}
+          <main className="flex-1 h-full p-3 min-h-0 min-w-0 overflow-hidden flex flex-col">
             <Terminal state={state} />
           </main>
+
+          {/* Right Column: Branch Board + Result Panel (scrolls internally) */}
           <aside
-            className="w-80 xl:w-96 flex-shrink-0 flex flex-col p-3 gap-3 min-h-0 overflow-hidden"
+            className="w-80 xl:w-96 flex-shrink-0 h-full flex flex-col p-3 gap-3 min-h-0 overflow-hidden"
             style={{ borderLeft: "1px solid var(--border)" }}
           >
-            <div className="flex-shrink-0" style={{ height: "280px" }}>
+            <div className="flex-shrink-0 h-[260px] overflow-hidden">
               <BranchBoard state={state} />
             </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <ResultPanel state={state} />
             </div>
           </aside>
         </div>
       </div>
 
-      <CostMeter state={state} />
-    </>
+      {/* Fixed bottom cost meter */}
+      <div className="flex-shrink-0">
+        <CostMeter state={state} />
+      </div>
+    </div>
   );
 }
 
@@ -144,7 +154,7 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
   const { id } = use(params);
   return (
     <div
-      className="flex flex-col min-h-screen"
+      className="flex flex-col h-dvh max-h-dvh w-full overflow-hidden"
       style={{ background: "var(--background)", color: "var(--text)" }}
     >
       <RunView runId={id} />

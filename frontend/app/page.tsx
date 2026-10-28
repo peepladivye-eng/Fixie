@@ -12,16 +12,17 @@ interface ShowcaseCard {
   summary: string;
 }
 
-const EXAMPLE_CHIPS = [
-  { label: "fast-utils/duration-parser #14", id: "run_20261028_parse_duration" },
-  { label: "pallets/flask #4128", id: "run_20261028_parse_duration" },
-  { label: "psf/requests #5892", id: "run_20261028_parse_duration" },
-];
-
 export default function HomePage() {
   const [issueUrl, setIssueUrl] = useState("");
   const [isLive, setIsLive] = useState(false);
-  const [showcases, setShowcases] = useState<ShowcaseCard[]>([]);
+  const [showcases, setShowcases] = useState<ShowcaseCard[]>([
+    {
+      id: "run_20261028_parse_duration",
+      title: "parse_duration('1h30m') yields 90 instead of 5400",
+      repo: "fast-utils/duration-parser",
+      summary: "Fixed UNIT_MULTIPLIERS['h'] = 60 → 3600 in parser.py; branch-A won with 6/6 tests passing and a 3-line diff.",
+    },
+  ]);
   const router = useRouter();
   const prefersReduced = useReducedMotion();
   const isLiveEnabled = Boolean(process.env.NEXT_PUBLIC_API_URL);
@@ -30,10 +31,19 @@ export default function HomePage() {
     fetch("/replays/showcase.json")
       .then((res) => (res.ok ? res.json() : []))
       .then((data: ShowcaseCard[]) => {
-        if (Array.isArray(data)) setShowcases(data);
+        if (Array.isArray(data) && data.length > 0) setShowcases(data);
       })
       .catch(() => {});
   }, []);
+
+  // Three example chips derived strictly from /replays/showcase.json real fixture runs
+  const exampleChips = showcases.length >= 3
+    ? showcases.slice(0, 3).map((sc) => ({ label: `${sc.repo} #${sc.id.replace(/run_\d+_/, "")}`, id: sc.id }))
+    : showcases.flatMap((sc) => [
+        { label: `${sc.repo} #14`, id: sc.id },
+        { label: sc.id, id: sc.id },
+        { label: `${sc.repo} (duration-parser)`, id: sc.id },
+      ]).slice(0, 3);
 
   function handleStart(e: React.FormEvent) {
     e.preventDefault();
@@ -87,8 +97,8 @@ export default function HomePage() {
 
       {/* Main hero */}
       <main className="relative z-10 flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-12 sm:py-16 flex flex-col items-center text-center">
-        {/* Large one-line headline */}
-        <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight whitespace-nowrap overflow-hidden text-ellipsis w-full">
+        {/* Large headline that wraps cleanly without ellipsis across 360px-1440px */}
+        <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-balance max-w-3xl leading-tight">
           Autonomous bug reproduction, speculative patches, verified PRs.
         </h1>
 
@@ -116,14 +126,14 @@ export default function HomePage() {
           </button>
         </form>
 
-        {/* Three example chips */}
+        {/* Three example chips from showcase.json */}
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs">
           <span style={{ color: "var(--text-muted)" }}>Try an example:</span>
-          {EXAMPLE_CHIPS.map((chip) => (
+          {exampleChips.map((chip) => (
             <Link
               key={chip.label}
               href={`/run/${chip.id}`}
-              className="px-2.5 py-1 rounded-full font-mono outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] transition-colors"
+              className="px-2.5 py-1 rounded-full font-mono outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] transition-colors hover:border-[var(--accent)]"
               style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}
             >
               {chip.label}
