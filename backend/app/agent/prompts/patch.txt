@@ -1,0 +1,3 @@
+Return only JSON matching: {{"diff": string, "summary": string}}.
+`diff` must be a valid unified diff using repository-relative paths. Issue:
+{issue}

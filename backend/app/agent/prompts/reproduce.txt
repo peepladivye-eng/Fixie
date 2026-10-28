@@ -1,0 +1,3 @@
+Return only JSON matching: {{"command": string, "expected": string}}.
+Describe how to reproduce this issue using the visible repository tests. Issue:
+{issue}

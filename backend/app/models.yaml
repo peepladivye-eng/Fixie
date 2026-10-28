@@ -1,0 +1,8 @@
+{
+  "roles": {
+    "triage": {"max_tokens": 400},
+    "reproduce": {"max_tokens": 500},
+    "diagnose": {"max_tokens": 600},
+    "patch": {"max_tokens": 1000}
+  }
+}

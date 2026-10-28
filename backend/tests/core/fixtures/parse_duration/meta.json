@@ -1,0 +1,1 @@
+{"title":"Seconds durations fail","test_cmd":"python -m pytest -q"}

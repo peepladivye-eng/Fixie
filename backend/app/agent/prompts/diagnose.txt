@@ -1,0 +1,3 @@
+Return only JSON matching: {{"root_cause": string}}.
+Diagnose the regression from the issue and test output. Issue:
+{issue}
