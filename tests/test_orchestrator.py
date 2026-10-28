@@ -3,6 +3,7 @@ import unittest
 from fixie.models import CandidatePatch, Issue
 from fixie.orchestrator import FixieOrchestrator
 from fixie.providers import FakePullRequestProvider, FakeSandboxProvider
+from fixie.server import run_issue
 
 
 class FixieOrchestratorTests(unittest.TestCase):
@@ -27,6 +28,11 @@ class FixieOrchestratorTests(unittest.TestCase):
     def test_empty_candidate_list_is_rejected(self):
         with self.assertRaises(ValueError):
             self.orchestrator.run(self.issue, [])
+
+    def test_issue_payload_runs_with_fake_providers(self):
+        report = run_issue({"number": 8, "title": "Bad state", "repository": "acme/repo"})
+        self.assertEqual("minimal", report["winner"]["candidate"]["name"])
+        self.assertEqual("fake", report["pull_request"]["mode"])
 
 
 if __name__ == "__main__":

@@ -19,6 +19,14 @@ and imports `contree_sdk` only when one of its methods is called.
 The second command writes `evidence.json`, `winner.diff`, and `pull-request.json`
 to the output directory. All commands must be run through `.\.venv\Scripts\python`.
 
+To use the local HTTP endpoint, start it with:
+
+```powershell
+.\.venv\Scripts\python -m fixie --serve --port 8080
+curl.exe http://127.0.0.1:8080/health
+curl.exe -X POST http://127.0.0.1:8080/runs -H "Content-Type: application/json" --data-binary "@examples/issue.json"
+```
+
 ## Provider boundary
 
 `fixie.providers` defines the interfaces used by the orchestrator. Fake providers
