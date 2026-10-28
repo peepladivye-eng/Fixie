@@ -16,8 +16,10 @@ Emit = Callable[[str, dict[str, Any]], Awaitable[None]]
 PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
 
 
-def get_strategies_for_round(round_number: int, showcase: bool = False) -> list[str]:
+def get_strategies_for_round(round_number: int, showcase: bool = False, baseline: bool = False) -> list[str]:
     """Return strategy labels for round_number (1-indexed) or showcase mode."""
+    if baseline:
+        return ["patch"]
     if showcase or round_number >= 2:
         return ["minimal", "root-cause", "defensive"]
     return ["patch", "patch_alt"]

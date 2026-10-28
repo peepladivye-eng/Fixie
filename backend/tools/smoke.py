@@ -61,11 +61,17 @@ def provider_config(provider: str) -> tuple[str, str, dict[str, str]]:
     if provider == "nebius":
         # TODO(VERIFY): confirm credential env var and endpoint for the owner's account.
         return (
-            os.getenv("NEBIUS_BASE_URL", "https://api.studio.nebius.ai/v1"),
+            os.getenv("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1/"),
             env_optional_key("NEBIUS_API_KEY"),
             {},
         )
-    raise ValueError("LLM_PROVIDER must be nvidia or nebius")
+    if provider == "gemini":
+        return (
+            os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai"),
+            env_optional_key("GEMINI_API_KEY"),
+            {},
+        )
+    raise ValueError("LLM_PROVIDER must be nvidia, nebius, or gemini")
 
 
 async def request_json(
@@ -83,11 +89,12 @@ async def request_json(
 
 async def llm_checks(args: argparse.Namespace) -> None:
     provider = os.getenv("LLM_PROVIDER", "").lower()
-    if provider not in {"nvidia", "nebius"}:
-        record("LLM configuration", False, "LLM_PROVIDER must be nvidia or nebius")
+    if provider not in {"nvidia", "nebius", "gemini"}:
+        record("LLM configuration", False, "LLM_PROVIDER must be nvidia, nebius, or gemini")
         return
     try:
         base_url, api_key, extra_headers = provider_config(provider)
+        base_url = base_url.rstrip("/")
     except Exception as exc:
         record("LLM configuration", False, str(exc))
         return

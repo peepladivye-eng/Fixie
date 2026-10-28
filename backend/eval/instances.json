@@ -1,14 +1,8 @@
 [
-  {"id": "TODO(VERIFY)-01", "source": "TODO(VERIFY): benchmark issue 01"},
-  {"id": "TODO(VERIFY)-02", "source": "TODO(VERIFY): benchmark issue 02"},
-  {"id": "TODO(VERIFY)-03", "source": "TODO(VERIFY): benchmark issue 03"},
-  {"id": "TODO(VERIFY)-04", "source": "TODO(VERIFY): benchmark issue 04"},
-  {"id": "TODO(VERIFY)-05", "source": "TODO(VERIFY): benchmark issue 05"},
-  {"id": "TODO(VERIFY)-06", "source": "TODO(VERIFY): benchmark issue 06"},
-  {"id": "TODO(VERIFY)-07", "source": "TODO(VERIFY): benchmark issue 07"},
-  {"id": "TODO(VERIFY)-08", "source": "TODO(VERIFY): benchmark issue 08"},
-  {"id": "TODO(VERIFY)-09", "source": "TODO(VERIFY): benchmark issue 09"},
-  {"id": "TODO(VERIFY)-10", "source": "TODO(VERIFY): benchmark issue 10"},
-  {"id": "TODO(VERIFY)-11", "source": "TODO(VERIFY): benchmark issue 11"},
-  {"id": "TODO(VERIFY)-12", "source": "TODO(VERIFY): benchmark issue 12"}
+  {"id": "csv_quotes", "source": "fixture:csv_quotes"},
+  {"id": "duration", "source": "fixture:duration"},
+  {"id": "overlap", "source": "fixture:overlap"},
+  {"id": "pagination", "source": "fixture:pagination"},
+  {"id": "slug_unicode", "source": "fixture:slug_unicode"},
+  {"id": "word_wrap", "source": "fixture:word_wrap"}
 ]
