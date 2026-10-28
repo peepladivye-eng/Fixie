@@ -81,7 +81,9 @@ def input_cap_for(role: str) -> int:
     return int(_MODELS["roles"].get(role, {}).get("input_cap_tokens", 8000))
 
 
-def calculate_cost(tier: str, input_tokens: int, output_tokens: int) -> float:
+def calculate_cost(tier: str, input_tokens: int, output_tokens: int, provider: str = "") -> float:
+    if provider.lower() == "gemini" or tier.lower() == "gemini":
+        return 0.0
     prices = _MODELS.get("prices_per_1m", {}).get(tier, {"input": 0.0, "output": 0.0})
     input_cost = (input_tokens / 1_000_000.0) * float(prices.get("input", 0.0))
     output_cost = (output_tokens / 1_000_000.0) * float(prices.get("output", 0.0))
@@ -219,8 +221,10 @@ _guards_and_cache: PersistentGuardsAndCache | None = None
 
 def get_guards_and_cache() -> PersistentGuardsAndCache:
     global _guards_and_cache
-    if _guards_and_cache is None:
-        _guards_and_cache = PersistentGuardsAndCache()
+    env_db = os.getenv("FIXIE_DB")
+    target_path = Path(env_db) if env_db else Path(__file__).resolve().parents[1] / "fixie.db"
+    if _guards_and_cache is None or _guards_and_cache.db_path.resolve() != target_path.resolve():
+        _guards_and_cache = PersistentGuardsAndCache(target_path)
     return _guards_and_cache
 
 
@@ -377,7 +381,11 @@ class AsyncOpenAICompatibleClient:
 
         models_map = _MODELS.get("providers", {}).get(self.provider, {}).get("models", {})
         model = models_map.get(tier, "default-model")
-        params = {"max_tokens": ceiling, "temperature": 0}
+        params: dict[str, Any] = {"max_tokens": ceiling, "temperature": 0}
+        if self.provider != "gemini":
+            reasoning_effort = _MODELS.get("roles", {}).get(role, {}).get("reasoning_effort", "none")
+            if reasoning_effort:
+                params["reasoning_effort"] = reasoning_effort
 
         cache_store = get_guards_and_cache()
         cache_key = _compute_key(self.provider, model, normalized, params)
@@ -401,6 +409,10 @@ class AsyncOpenAICompatibleClient:
             "max_tokens": ceiling,
             "temperature": 0,
         }
+        if self.provider != "gemini":
+            reasoning_effort = _MODELS.get("roles", {}).get(role, {}).get("reasoning_effort", "none")
+            if reasoning_effort:
+                payload_req["reasoning_effort"] = reasoning_effort
         # TODO(VERIFY): Confirm reasoning parameter name for provider (e.g. reasoning_effort="none")
         if tools:
             payload_req["tools"] = tools
@@ -432,7 +444,7 @@ class AsyncOpenAICompatibleClient:
                 usage = payload.get("usage", {})
                 in_tok = int(usage.get("prompt_tokens", tokens))
                 out_tok = int(usage.get("completion_tokens", len(text) // 4))
-                cost = calculate_cost(tier, in_tok, out_tok)
+                cost = calculate_cost(tier, in_tok, out_tok, provider=self.provider)
 
                 # Check and apply budget guards
                 cache_store.check_and_increment(cost, run_id=run_id)
@@ -524,8 +536,12 @@ def configured_client() -> ChatClient:
     if provider == "cassette":
         return CassetteChatClient()
 
-    # Providers: nvidia, nebius
-    key_name = {"nebius": "NEBIUS_API_KEY", "nvidia": "NVIDIA_API_KEY"}.get(provider)
+    # Providers: nvidia, nebius, gemini
+    key_name = {
+        "nebius": "NEBIUS_API_KEY",
+        "nvidia": "NVIDIA_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+    }.get(provider)
     if key_name is None:
         raise ValueError(f"unsupported LLM_PROVIDER: {provider}")
 
@@ -534,7 +550,7 @@ def configured_client() -> ChatClient:
         raise RuntimeError(f"{key_name} must be set for LLM_PROVIDER={provider}")
 
     provider_info = _MODELS.get("providers", {}).get(provider, {})
-    # TODO(VERIFY): Confirm live base URLs for nvidia and nebius endpoints
+    # TODO(VERIFY): Confirm live base URLs for nvidia, nebius, and gemini endpoints
     default_url = provider_info.get("base_url", "")
     base_url = os.getenv("LLM_BASE_URL", default_url)
     return AsyncOpenAICompatibleClient(provider, base_url, api_key)

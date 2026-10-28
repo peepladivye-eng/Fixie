@@ -64,6 +64,16 @@
         "ultra": "meta-llama/Llama-3.3-70B-Instruct",
         "none": "meta-llama/Llama-3.1-8B-Instruct"
       }
+    },
+    "gemini": {
+      "_note": "dev only, TODO(VERIFY) model names in AI Studio",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "models": {
+        "lightning": "gemini-2.5-flash-lite",
+        "super": "gemini-2.5-flash",
+        "ultra": "gemini-2.5-flash",
+        "none": "gemini-2.5-flash-lite"
+      }
     }
   },
   "prices_per_1m": {

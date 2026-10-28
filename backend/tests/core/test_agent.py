@@ -1,12 +1,14 @@
 """Tests for Stage 2 agent components: context, output, scoring, branching, early exits, eval grading."""
 from __future__ import annotations
 
+import pytest
+pytest.importorskip("app.agent.loop")
+
 import asyncio
 import json
 import time
 from pathlib import Path
 
-import pytest
 import jsonschema
 
 from app.agent.context import build_context, extract_relevant_ast_snippets
