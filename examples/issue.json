@@ -1,0 +1,6 @@
+{
+  "number": 42,
+  "title": "Parser rejects a trailing newline",
+  "body": "When a configuration file has a trailing newline, parsing fails.",
+  "repository": "acme/example"
+}
