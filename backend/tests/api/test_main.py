@@ -25,7 +25,7 @@ def wait_for_finished(client, run_id):
 
 
 def test_live_run_and_sse_resume(client):
-    created = client.post("/runs", json={"source": "issue body", "mode": "live"})
+    created = client.post("/runs", json={"source": "https://github.com/acme/demo/issues/1", "mode": "live"})
     assert created.status_code == 200
     run_id = created.json()["run_id"]
     run = wait_for_finished(client, run_id)
@@ -46,13 +46,19 @@ def test_replay_health_eval_and_live_limit(tmp_path, monkeypatch):
     module = importlib.reload(app.main)
     with TestClient(module.app) as client:
         assert client.get("/health").json()["daily_runs_left"] == 1
-        first = client.post("/runs", json={"source": "one", "mode": "live"})
+        first = client.post("/runs", json={"source": "https://github.com/acme/demo/issues/1", "mode": "live"})
         assert first.status_code == 200
-        blocked = client.post("/runs", json={"source": "two", "mode": "live"})
+        blocked = client.post("/runs", json={"source": "https://github.com/acme/demo/issues/2", "mode": "live"})
         assert blocked.status_code == 429
         assert blocked.json()["detail"]["code"] == "LIVE_PAUSED"
-        replay = client.post("/runs", json={"source": "missing.jsonl", "mode": "replay"})
+        replay = client.post("/runs", json={"source": "instance:sample", "mode": "replay"})
         assert replay.status_code == 200
         replay_run = wait_for_finished(client, replay.json()["run_id"])
         assert replay_run["mode"] == "replay"
         assert client.get("/eval/summary").json()["synthetic"] is True
+
+
+def test_invalid_github_path_is_rejected(client):
+    response = client.post("/runs", json={"source": "https://github.com/acme/demo/pulls/1", "mode": "live"})
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "INVALID_SOURCE"

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import argparse
+import os
 import json
 import sys
 import time
@@ -10,10 +12,13 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-try:
-    from app.agent.runner import run_agent  # type: ignore[import-not-found]
-except ImportError:
+if os.getenv("FIXIE_FORCE_FAKE_RUNNER") == "1":
     from app.fake_runner import run_agent
+else:
+    try:
+        from app.agent.runner import run_agent  # type: ignore[import-not-found]
+    except ImportError:
+        from app.fake_runner import run_agent
 
 ROOT = Path(__file__).parent
 OUTPUT = ROOT / "eval.json"
@@ -46,8 +51,13 @@ def aggregate(items: list[dict[str, Any]]) -> dict[str, Any]:
     return {"resolved": sum(x["resolved"] for x in items), "rounds": sum(x["rounds"] for x in items), "cost_usd": sum(x["cost_usd"] for x in items), "seconds": sum(x["seconds"] for x in items), "per_model": dict(model)}
 
 
-async def main() -> None:
-    instances = json.loads((ROOT / "instances.json").read_text(encoding="utf-8"))
+async def main(fixtures: bool = False, repeat: int = 1) -> None:
+    if fixtures:
+        if __import__("os").getenv("FIXIE_ALLOW_LOCAL") != "1":
+            raise RuntimeError("fixtures require FIXIE_ALLOW_LOCAL=1")
+        instances = [{"id": item.name, "source": f"fixture:{item.name}"} for item in sorted((ROOT / "fixtures").iterdir()) if item.is_dir()]
+    else:
+        instances = json.loads((ROOT / "instances.json").read_text(encoding="utf-8"))
     previous = json.loads(OUTPUT.read_text(encoding="utf-8")) if OUTPUT.exists() else {"results": []}
     completed = {item["id"]: item for item in previous.get("results", [])}
     semaphore = asyncio.Semaphore(4)
@@ -57,10 +67,16 @@ async def main() -> None:
         async with semaphore:
             return {"id": instance["id"], "baseline": await one_run(instance["source"], {"k_branches": 1, "max_rounds": 2}), "branching": await one_run(instance["source"], {"k_branches": 3, "max_rounds": 2})}
 
-    results = await asyncio.gather(*(evaluate(item) for item in instances))
-    report = {"synthetic": False, "instances_total": len(results), "baseline": aggregate([x["baseline"] for x in results]), "branching": aggregate([x["branching"] for x in results]), "results": results}
+    expanded = [{**item, "id": f"{item['id']}#{number}"} for item in instances for number in range(repeat)]
+    results = await asyncio.gather(*(evaluate(item) for item in expanded))
+    report = {"synthetic": run_agent.__module__.endswith("fake_runner"), "instances_total": len(results), "baseline": aggregate([x["baseline"] for x in results]), "branching": aggregate([x["branching"] for x in results]), "results": results}
     OUTPUT.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fixtures", action="store_true")
+    parser.add_argument("--repeat", type=int, default=1)
+    parser.add_argument("--provider-env", action="store_true", help="Provider environment is inherited and never read by this harness.")
+    args = parser.parse_args()
+    asyncio.run(main(args.fixtures, args.repeat))

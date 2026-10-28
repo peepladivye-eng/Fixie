@@ -1,0 +1,5 @@
+--- a/pages.py
++++ b/pages.py
+@@ -1 +1 @@
+-def page(items, number, size): return items[(number - 1) * size:number * size - 1]
++def page(items, number, size): return items[(number - 1) * size:number * size]

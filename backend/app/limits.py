@@ -38,3 +38,25 @@ class LiveRunLimiter:
             if self._day != date.today():
                 self._day, self._global, self._per_ip = date.today(), 0, defaultdict(int)
             return max(0, self._cap("FIXIE_DAILY_LIVE_CAP", 25) - self._global)
+
+
+class LiveRunSlots:
+    """Process-local concurrency guard; deployments should use a shared limiter."""
+    def __init__(self) -> None:
+        self.active = 0
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> bool:
+        async with self._lock:
+            try:
+                maximum = max(1, int(os.getenv("FIXIE_MAX_CONCURRENT_LIVE", "2")))
+            except ValueError:
+                maximum = 2
+            if self.active >= maximum:
+                return False
+            self.active += 1
+            return True
+
+    async def release(self) -> None:
+        async with self._lock:
+            self.active = max(0, self.active - 1)

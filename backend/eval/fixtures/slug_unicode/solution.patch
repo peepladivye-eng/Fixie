@@ -1,0 +1,5 @@
+--- a/slug.py
++++ b/slug.py
+@@ -1 +1 @@
+-def slugify(value): return ''.join(c.lower() if c.isascii() and c.isalnum() else '-' for c in value).strip('-')
++def slugify(value): return ''.join(c.lower() if c.isalnum() else '-' for c in value).strip('-')
