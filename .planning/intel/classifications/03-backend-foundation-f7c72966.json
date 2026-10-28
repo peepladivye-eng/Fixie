@@ -1,0 +1,25 @@
+{
+  "source_path": "C:/Users/Lenovo/.gemini/antigravity/worktrees/Fixie/ingest_documentation_command/prompts/antigravity/03_backend_foundation.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Lane: Backend foundation implementation prompt",
+  "summary": "Core backend foundation: LLM client, sandbox manager, event replay, cost limits, and FastAPI app.",
+  "scope": [
+    "backend foundation",
+    "llm client",
+    "sandbox",
+    "replay",
+    "limits",
+    "FastAPI"
+  ],
+  "cross_refs": [
+    "contracts/interfaces.md",
+    "contracts/openapi.yaml",
+    "contracts/events.schema.json",
+    "AGENTS.md"
+  ],
+  "locked": false,
+  "precedence": 3,
+  "notes": ""
+}

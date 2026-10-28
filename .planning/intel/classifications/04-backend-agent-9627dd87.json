@@ -1,0 +1,22 @@
+{
+  "source_path": "C:/Users/Lenovo/.gemini/antigravity/worktrees/Fixie/ingest_documentation_command/prompts/antigravity/04_backend_agent.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Lane: Backend agent implementation prompt",
+  "summary": "Agentic loop, candidate branching, deterministic scoring, git patch generation, and evaluation suite.",
+  "scope": [
+    "agent loop",
+    "speculative branching",
+    "scoring",
+    "patch generation",
+    "benchmark eval"
+  ],
+  "cross_refs": [
+    "contracts/interfaces.md",
+    "AGENTS.md"
+  ],
+  "locked": false,
+  "precedence": 3,
+  "notes": ""
+}

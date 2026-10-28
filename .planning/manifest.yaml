@@ -1,0 +1,25 @@
+docs:
+  - path: AGENTS.md
+    type: ADR
+    precedence: 0
+  - path: contracts/interfaces.md
+    type: SPEC
+    precedence: 1
+  - path: README.md
+    type: PRD
+    precedence: 2
+  - path: prompts/antigravity/01_ui_run_view.md
+    type: SPEC
+    precedence: 3
+  - path: prompts/antigravity/02_ui_pages.md
+    type: SPEC
+    precedence: 3
+  - path: prompts/antigravity/03_backend_foundation.md
+    type: SPEC
+    precedence: 3
+  - path: prompts/antigravity/04_backend_agent.md
+    type: SPEC
+    precedence: 3
+  - path: prompts/antigravity/05_smoke.md
+    type: SPEC
+    precedence: 3

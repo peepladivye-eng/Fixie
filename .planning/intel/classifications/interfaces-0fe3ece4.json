@@ -1,0 +1,21 @@
+{
+  "source_path": "C:/Users/Lenovo/.gemini/antigravity/worktrees/Fixie/ingest_documentation_command/contracts/interfaces.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Core Subsystem Interfaces",
+  "summary": "Language-neutral specifications for LLM providers, sandbox runtimes, search, and code hosts.",
+  "scope": [
+    "LLM interface",
+    "Sandbox interface",
+    "Search interface",
+    "GitHub interface"
+  ],
+  "cross_refs": [
+    "contracts/events.schema.json",
+    "contracts/openapi.yaml"
+  ],
+  "locked": false,
+  "precedence": 1,
+  "notes": ""
+}

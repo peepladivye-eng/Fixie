@@ -1,0 +1,22 @@
+{
+  "source_path": "C:/Users/Lenovo/.gemini/antigravity/worktrees/Fixie/ingest_documentation_command/prompts/antigravity/02_ui_pages.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Lane: UI pages implementation prompt",
+  "summary": "Implementation requirements for home page, evaluation dashboard, and interactive states.",
+  "scope": [
+    "UI home page",
+    "eval dashboard",
+    "empty states",
+    "error states"
+  ],
+  "cross_refs": [
+    "contracts/interfaces.md",
+    "contracts/openapi.yaml",
+    "AGENTS.md"
+  ],
+  "locked": false,
+  "precedence": 3,
+  "notes": ""
+}

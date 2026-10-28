@@ -1,0 +1,20 @@
+{
+  "source_path": "C:/Users/Lenovo/.gemini/antigravity/worktrees/Fixie/ingest_documentation_command/README.md",
+  "type": "PRD",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Fixie: Speculative Bug-Fixing Agent",
+  "summary": "Fixie reproduces bugs in sandboxes, forks candidate patches, evaluates tests in parallel, and opens PRs.",
+  "scope": [
+    "automated bug-fixing",
+    "speculative branching",
+    "parallel evaluation",
+    "web UI timeline"
+  ],
+  "cross_refs": [
+    "AGENTS.md"
+  ],
+  "locked": false,
+  "precedence": 2,
+  "notes": ""
+}

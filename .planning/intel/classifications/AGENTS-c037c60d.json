@@ -1,0 +1,27 @@
+{
+  "source_path": "C:/Users/Lenovo/.gemini/antigravity/worktrees/Fixie/ingest_documentation_command/AGENTS.md",
+  "type": "ADR",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Fixie: Agent Guidelines",
+  "summary": "Architecture, stack rules, lanes, and operational constraints for Fixie multi-agent system.",
+  "scope": [
+    "agent guidelines",
+    "architecture",
+    "stack rules",
+    "lanes",
+    "cost guards"
+  ],
+  "cross_refs": [
+    "contracts/events.schema.json",
+    "contracts/openapi.yaml",
+    "contracts/interfaces.md",
+    "contracts/CHANGE_REQUESTS.md",
+    "NOTES.md",
+    "scripts/check.py",
+    "backend/tools/smoke.py"
+  ],
+  "locked": true,
+  "precedence": 0,
+  "notes": ""
+}

@@ -1,0 +1,20 @@
+{
+  "source_path": "C:/Users/Lenovo/.gemini/antigravity/worktrees/Fixie/ingest_documentation_command/prompts/antigravity/05_smoke.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Lane: Smoke test runner prompt",
+  "summary": "Smoke test verification for live provider credentials and real sandbox endpoints.",
+  "scope": [
+    "smoke tests",
+    "live credentials",
+    "sanity checks"
+  ],
+  "cross_refs": [
+    "backend/tools/smoke.py",
+    "AGENTS.md"
+  ],
+  "locked": false,
+  "precedence": 3,
+  "notes": ""
+}

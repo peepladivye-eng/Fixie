@@ -1,0 +1,23 @@
+{
+  "source_path": "C:/Users/Lenovo/.gemini/antigravity/worktrees/Fixie/ingest_documentation_command/prompts/antigravity/01_ui_run_view.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": true,
+  "title": "Lane: UI run view implementation prompt",
+  "summary": "Implementation requirements for streaming run timeline, live terminal, and branch tree.",
+  "scope": [
+    "UI run view",
+    "timeline",
+    "terminal",
+    "branch tree",
+    "WebSocket events"
+  ],
+  "cross_refs": [
+    "contracts/interfaces.md",
+    "contracts/events.schema.json",
+    "AGENTS.md"
+  ],
+  "locked": false,
+  "precedence": 3,
+  "notes": ""
+}
