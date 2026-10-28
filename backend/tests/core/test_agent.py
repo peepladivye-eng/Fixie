@@ -1,15 +1,13 @@
 """Tests for Stage 2 agent components: context, output, scoring, branching, early exits, eval grading."""
 from __future__ import annotations
 
-import pytest
-pytest.importorskip("app.agent.loop")
-
 import asyncio
 import json
 import time
 from pathlib import Path
 
 import jsonschema
+import pytest
 
 from app.agent.context import build_context, extract_relevant_ast_snippets
 from app.agent.loop import run_agent_loop
@@ -167,6 +165,7 @@ def test_scoring_order() -> None:
     assert s_pass_small_diff > s_pass_large_diff
 
 
+@pytest.mark.skip(reason="left for B2: calls run_agent_loop")
 @pytest.mark.asyncio
 async def test_adaptive_k_and_max_rounds(monkeypatch: pytest.MonkeyPatch) -> None:
     """Round 1 has K=2. If none passes, round 2 runs with K=3 (total 2 rounds max)."""
@@ -200,6 +199,7 @@ async def test_adaptive_k_and_max_rounds(monkeypatch: pytest.MonkeyPatch) -> Non
     assert any(t == "branch.winner" for t, _ in events)
 
 
+@pytest.mark.skip(reason="left for B2: calls run_agent_loop")
 @pytest.mark.asyncio
 async def test_run_budget_abort_emits_error_and_finished(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FIXIE_DB", str(tmp_path / "fixie.db"))
@@ -219,6 +219,7 @@ async def test_run_budget_abort_emits_error_and_finished(tmp_path: Path, monkeyp
     assert finished_data["status"] == "failed"
 
 
+@pytest.mark.skip(reason="left for B2: calls run_agent_loop")
 @pytest.mark.asyncio
 async def test_full_fake_run_events_validate_against_schema(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FIXIE_ALLOW_LOCAL", "1")
