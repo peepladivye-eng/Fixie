@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "node scripts/copy-replays.mjs",
+    "predev": "node scripts/copy-replays.mjs && node scripts/copy-eval.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/copy-replays.mjs",
+    "prebuild": "node scripts/copy-replays.mjs && node scripts/copy-eval.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -23,6 +23,7 @@
     "next": "15.3.9",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "recharts": "3.10.1",
     "tailwind-merge": "3.0.2",
     "tw-animate-css": "1.4.0"
   },
