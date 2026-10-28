@@ -1,86 +1,68 @@
-# Fixie: Agent Guidelines & Multi-Prompt Protocol
+# Fixie: Agent Guidelines
 
-Fixie is an autonomous bug reproduction and speculative patch engine built for the **Nebius x NVIDIA Global AI Hackathon (Track 1: Coding and Agentic Engineering)**.
-Fixie ingests a GitHub issue, reproduces the bug in an isolated sandbox, forks the sandbox state into several candidate patches simultaneously, tests them concurrently, evaluates test evidence, and delivers the winning patch with diff, reproduction proof, and pull request.
+Fixie takes a GitHub issue (or fixture/benchmark instance), reproduces the bug in a sandbox, forks the sandbox
+state into several candidate patches, runs tests on all of them in parallel, scores them with deterministic code,
+keeps the winner, and delivers a diff, test evidence and a PR. A web UI streams the run as a step timeline, a
+terminal and a branch tree. Built for the Nebius x NVIDIA Global AI Hackathon, Track 1.
 
----
+This file is the single source of truth. Tool-specific rule files (e.g. `.agent/rules/`) must only point here.
 
-## 1. Project Summary & Architecture Stack
+## 1. Stack
+- Backend: Python 3.12, FastAPI, httpx, pydantic, SQLite. Import root is `backend/` (modules are `app.*`;
+  run commands from `backend/` or rely on `pythonpath` in `pytest.ini`).
+- Frontend: Next.js 15 App Router, React 19, TypeScript, Tailwind v4, shadcn/ui, `motion/react`, `@xyflow/react`,
+  `lucide-react`, `cmdk`, `recharts`.
+- Contracts (FROZEN): `contracts/events.schema.json`, `contracts/openapi.yaml`, `contracts/interfaces.md`.
+- Design tokens: `frontend/styles/tokens.css` only. Never hard-code a colour.
 
-- **Backend**: Python 3.12, FastAPI, Pydantic, SQLite (runs/replays), Contree-SDK / Sandbox abstraction, Nebius Token Factory / NVIDIA NIM LLM client abstraction.
-- **Frontend**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS v4, shadcn/ui, motion (Framer Motion), `@xyflow/react`, `lucide-react`, `cmdk`.
-- **Contracts**: Frozen schemas and interfaces in `contracts/` defining SSE event streams and REST endpoints.
-- **Visual Palette**: Strict design tokens in `frontend/styles/tokens.css` (Background `#0B0D10`, Surface `#12151A`, Border `#1F242C`, Text `#E8EAED`, Text-Muted `#9AA3AE`, Accent Amber `#F5A524`, Pass `#3DD68C`, Fail `#F0616D`, Badge-Blue `#6EA8FE`).
+## 2. Hard rules
+1. Never read, print, log or commit `.env`. Config comes from environment variables. Never ask for keys.
+2. Agents never make live calls to paid or rate-limited APIs (Nebius, NVIDIA, Tavily, GitHub, Contree). Everything
+   is built and tested on FAKE providers. Only the project owner runs `backend/tools/smoke.py` with real keys.
+3. No destructive shell commands. Work only inside this repo. No force pushes. Never merge into `master` yourself.
+4. Pin every dependency exactly. Keep dependencies few; add one only when the task needs it.
+5. Do not invent APIs. Unknown external APIs go behind an interface and are marked `TODO(VERIFY)`.
+6. Never edit `contracts/`. If you need a change, append a request to `contracts/CHANGE_REQUESTS.md` and stop.
+7. Keep every file under about 300 lines. Do not scan the whole repo; read only the files you need.
+8. No plan documents, walkthroughs or extra artifacts. No screenshots or browser-tool runs except in a prompt's
+   final acceptance step. No long-running servers in agent sessions; tests use in-process clients.
+9. If something fails twice, stop that item, record the exact error in `NOTES.md`, and move on.
+10. Commit after every stage on your own branch with a clear message.
 
----
-
-## 2. Hard Rules (Non-Negotiable)
-
-1. **Zero cost**: Never call any paid API and never add payment information. All development uses fake/mock implementations. No live API keys exist during Day 0 development.
-2. **Secrets & Environment Variables**:
-   - Never read, print, or commit `.env`.
-   - Do NOT create a `.env` file containing secrets.
-   - Only `.env.example` is committed with empty keys (`NEBIUS_API_KEY`, `NEBIUS_PROJECT_ID`, `NVIDIA_API_KEY`, `TAVILY_API_KEY`, `GITHUB_TOKEN`).
-   - Read configurations exclusively from environment variables with safe defaults.
-   - Never prompt the user for API keys.
-3. **No destructive commands**:
-   - No `rm -rf` outside this repository.
-   - No force pushes (`git push --force`).
-   - Work strictly inside this repository workspace.
-   - Commit with clear, descriptive messages.
-4. **Pinned dependencies**:
-   - Pin all dependency versions strictly in `requirements.txt` and `package.json`.
-   - Keep dependencies minimal.
-5. **No invented APIs**:
-   - Where external API structures (Nebius, NVIDIA, Contree SDK, etc.) are unverified, place them behind an interface and tag them with `TODO(VERIFY)`.
-
----
-
-## 3. Folder Ownership & Parallel Lanes
-
-To prevent merge collisions across parallel agent prompts, files and directories are partitioned into strict ownership lanes:
-
-| Lane / Prompt | Owned Scope | Responsibilities |
+## 3. Lanes and ownership (one agent per lane, one branch per lane)
+| Lane | Branch | Owns |
 |---|---|---|
-| **Prompt 1 (Backend)** | `backend/` | FastAPI server, SSE streaming, agent loop, step runners, mock sandboxes, event validator |
-| **Prompt 2 (Run Studio UI)** | `frontend/lib/`, `frontend/components/run/`, `frontend/app/run/` | Live SSE hooks, Timeline component, Terminal Chunk viewer, Branch Tree (`@xyflow/react`), Winner Diff view |
-| **Prompt 3 (Frontend Shell)** | `frontend/app/` (except `/run`), `frontend/components/` (except `/run`), `frontend/styles/` | App shell, navigation, Showcase gallery, benchmark eval dashboard, modal dialogs, empty states |
-| **Global Contracts (FROZEN)** | `contracts/` | Schema and interface definition. **No lane may modify directly!** |
+| Backend A: foundation | `lane/backend-foundation` | `backend/app/llm.py`, `models.json`, `sandbox.py`, `main.py`, `replay.py`, `limits.py`, `store.py`, `backend/tests/`, `scripts/` |
+| Backend B: agent | `lane/backend-agent` | `backend/app/agent/`, `search.py`, `github.py`, `backend/eval/` |
+| Smoke | `lane/smoke` | `backend/tools/smoke.py` only |
+| UI run view | `lane/ui-run` | `frontend/lib/`, `frontend/components/run/`, `frontend/app/run/` |
+| UI pages | `lane/ui-pages` | `frontend/app/page.tsx`, `frontend/app/eval/`, `frontend/components/{home,eval,states}/` |
 
-### Contract Change Protocol
-- **Lanes MUST NEVER directly edit files under `contracts/`.**
-- If a schema or interface modification is needed, the lane must append an entry to `contracts/CHANGE_REQUESTS.md`.
+Backend B starts only after Backend A is merged. Shared frontend files (`layout.tsx`, `package.json`) belong to
+the project owner; report needed changes in your final message instead of editing them (add new dependencies to
+`package.json` only if your prompt says so).
 
----
-
-## 4. Exact Commands to Run
-
-### Backend
-```bash
-# Install dependencies
-pip install -r backend/requirements.txt
-
-# Run event schema validator on sample replay
-python -m backend.tools.validate_events replays/sample_run.jsonl
-
-# Run unit tests
-pytest
-
-# Start FastAPI development server
-uvicorn backend.app.main:app --reload --port 8000
+## 4. Commands
+```powershell
+# one-time
+py -3.12 -m venv .venv
+.\.venv\Scripts\python -m pip install -r backend/requirements.txt
+# checks
+.\.venv\Scripts\python scripts/check.py              # validator + pytest
+.\.venv\Scripts\python scripts/check.py --frontend   # also frontend lint + build
+# backend (from repo root)
+cd backend; ..\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+# frontend
+cd frontend; npm install; npm run dev -- -p 3000
 ```
+`scripts/check.py` is the one verification command. Run it instead of improvising.
 
-### Frontend
-```bash
-# Navigate to frontend
-cd frontend
-
-# Install dependencies
-npm install
-
-# Run Next.js production build
-npm run build
-
-# Start Next.js development server
-npm run dev -- -p 3000
-```
+## 5. Product rules that must hold
+- Branching means K candidates with DIFFERENT strategy prompts, evaluated in PARALLEL (`asyncio.gather`).
+- Scoring, ranking, diff size and pass counts are deterministic code, never model calls.
+- The patch model must see relevant code and a compact failing-test summary, never only the issue text.
+- `model_tier` in events is `lightning|super|ultra|none`, never a model name.
+- Cost guards are real: `HARD_CAP_USD` (Nebius), `CALL_CAP` (NVIDIA), `RUN_BUDGET_USD` (default 0.08),
+  `LIVE_ENABLED` default false. Cassette mode and the response cache make repeat runs free.
+- Synthetic numbers must be flagged `synthetic: true` and never presented as results.
+- Hidden tests are used only to grade, never exposed to the agent or copied into its sandbox.

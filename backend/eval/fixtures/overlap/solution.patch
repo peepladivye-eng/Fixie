@@ -1,0 +1,5 @@
+--- a/ranges.py
++++ b/ranges.py
+@@ -1 +1 @@
+-def overlaps(a, b): return a[0] <= b[1] and b[0] <= a[1]
++def overlaps(a, b): return a[0] < b[1] and b[0] < a[1]

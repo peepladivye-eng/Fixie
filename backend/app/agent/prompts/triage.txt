@@ -1,0 +1,3 @@
+Return only JSON matching: {{"summary": string, "risk": string}}.
+Summarize the issue and assign a concise risk level. Issue follows:
+{issue}

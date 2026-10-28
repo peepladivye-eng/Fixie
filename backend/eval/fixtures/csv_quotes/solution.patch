@@ -1,0 +1,6 @@
+--- a/csv_simple.py
++++ b/csv_simple.py
+@@ -1 +1,2 @@
+-def parse(line): return line.split(',')
++import csv
++def parse(line): return next(csv.reader([line]))

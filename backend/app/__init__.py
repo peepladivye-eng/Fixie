@@ -1,1 +1,1 @@
-"""Fixie backend application package."""
+"""Fixie API package."""

@@ -1,1 +1,1 @@
-"""Agent orchestration package."""
+"""Fixie agent workflow."""

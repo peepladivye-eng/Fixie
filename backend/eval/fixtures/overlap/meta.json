@@ -1,0 +1,1 @@
+{"title":"Date range overlap treats touching ranges as conflicts","test_cmd":"pytest -q"}

@@ -1,0 +1,1 @@
+{"title":"Slugify supports Unicode letters","test_cmd":"pytest -q"}

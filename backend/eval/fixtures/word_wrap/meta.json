@@ -1,0 +1,1 @@
+{"title":"Word wrap keeps final line","test_cmd":"pytest -q"}
