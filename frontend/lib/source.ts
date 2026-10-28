@@ -20,6 +20,7 @@ export class ReplaySource implements FixieSource {
   private runId: string;
   private baseUrl: string;
   private speed: EventSpeed = 1;
+  private isInstant = false;
   private isPaused = false;
   private events: FixieEvent[] = [];
   private offsets: number[] = [];
@@ -29,12 +30,14 @@ export class ReplaySource implements FixieSource {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private subscribers = new Set<EventSourceSubscriber>();
   private loaded = false;
+  private loading = false;
   private isAborted = false;
 
-  constructor(runId: string, options?: { baseUrl?: string; initialSpeed?: EventSpeed; rawEvents?: FixieEvent[] }) {
+  constructor(runId: string, options?: { baseUrl?: string; initialSpeed?: EventSpeed; rawEvents?: FixieEvent[]; isInstant?: boolean }) {
     this.runId = runId;
     this.baseUrl = options?.baseUrl ?? "";
     if (options?.initialSpeed) this.speed = options.initialSpeed;
+    if (options?.isInstant) this.isInstant = true;
     if (options?.rawEvents) this.initEvents(options.rawEvents);
   }
 
@@ -54,7 +57,14 @@ export class ReplaySource implements FixieSource {
   }
 
   private scheduleNext() {
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
     if (this.isPaused || this.isAborted || this.currentIndex >= this.events.length) return;
+    if (this.isInstant) {
+      while (this.currentIndex < this.events.length && !this.isPaused && !this.isAborted) {
+        this.emitCurrentAndAdvance();
+      }
+      return;
+    }
     const delta = this.offsets[this.currentIndex] - this.getVirtualTime();
     if (delta <= 0) {
       this.emitCurrentAndAdvance();
@@ -85,7 +95,8 @@ export class ReplaySource implements FixieSource {
     this.subscribers.add(sub);
     this.isAborted = false;
 
-    if (!this.loaded) {
+    if (!this.loaded && !this.loading) {
+      this.loading = true;
       const filename = this.runId.endsWith(".jsonl") ? this.runId : `${this.runId}.jsonl`;
       fetch(`${this.baseUrl}/replays/${filename}`)
         .then(async (res) => {
@@ -96,8 +107,12 @@ export class ReplaySource implements FixieSource {
           this.lastAnchorReal = Date.now();
           this.scheduleNext();
         })
-        .catch((err) => sub.onError?.(err instanceof Error ? err : new Error(String(err))));
-    } else if (this.currentIndex < this.events.length && !this.isPaused) {
+        .catch((err) => {
+          for (const s of this.subscribers) s.onError?.(err instanceof Error ? err : new Error(String(err)));
+        })
+        .finally(() => { this.loading = false; });
+    } else if (this.loaded && !this.timer && this.currentIndex < this.events.length && !this.isPaused) {
+      this.virtualElapsed = this.getVirtualTime();
       this.lastAnchorReal = Date.now();
       this.scheduleNext();
     }
@@ -147,9 +162,11 @@ export class LiveSource implements FixieSource {
   private buffer: FixieEvent[] = [];
   private subscribers = new Set<EventSourceSubscriber>();
   private es: EventSource | null = null;
+  private connecting = false;
   private lastEventId: string | null = null;
   private errorGraceTimer: ReturnType<typeof setTimeout> | null = null;
   private isClosed = false;
+  private pendingComplete = false;
 
   constructor(runId: string, options?: { apiUrl?: string }) {
     this.runId = runId;
@@ -184,14 +201,18 @@ export class LiveSource implements FixieSource {
       return () => this.subscribers.delete(sub);
     }
 
-    fetch(`${this.apiUrl}/health`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Health check failed with status ${res.status}`);
-        const data = await res.json();
-        if (!data.live_enabled) throw new Error("Live source unavailable: live_enabled is false");
-        this.connect();
-      })
-      .catch((err) => this.fail(err instanceof Error ? err : new Error(String(err))));
+    if (!this.es && !this.connecting) {
+      this.connecting = true;
+      fetch(`${this.apiUrl}/health`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`Health check failed with status ${res.status}`);
+          const data = await res.json();
+          if (!data.live_enabled) throw new Error("Live source unavailable: live_enabled is false");
+          this.connect();
+        })
+        .catch((err) => this.fail(err instanceof Error ? err : new Error(String(err))))
+        .finally(() => { this.connecting = false; });
+    }
 
     return () => {
       this.subscribers.delete(sub);
@@ -200,7 +221,8 @@ export class LiveSource implements FixieSource {
   }
 
   private connect() {
-    if (this.isClosed || typeof EventSource === "undefined") return;
+    if (this.isClosed || this.subscribers.size === 0 || typeof EventSource === "undefined") return;
+    if (this.es) this.es.close();
     const url = new URL(`${this.apiUrl}/runs/${this.runId}/events`);
     if (this.lastEventId) url.searchParams.set("last_event_id", this.lastEventId);
 
@@ -218,7 +240,7 @@ export class LiveSource implements FixieSource {
           if (!this.errorGraceTimer) this.errorGraceTimer = setTimeout(() => this.complete(), 3000);
         } else if (ev.type === "run.finished") {
           if (this.errorGraceTimer) { clearTimeout(this.errorGraceTimer); this.errorGraceTimer = null; }
-          this.complete();
+          if (this.isPaused) { this.pendingComplete = true; } else { this.complete(); }
         }
       } catch (err) {
         this.fail(err instanceof Error ? err : new Error(String(err)));
@@ -239,6 +261,7 @@ export class LiveSource implements FixieSource {
       const ev = this.buffer.shift();
       if (ev) this.emit(ev);
     }
+    if (this.pendingComplete) { this.pendingComplete = false; this.complete(); }
   }
 
   setSpeed(speed: EventSpeed) { this.speed = speed; }
