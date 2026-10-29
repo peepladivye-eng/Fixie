@@ -347,21 +347,45 @@ class CassetteChatClient:
         return key
 
 
+def _format_error(error: Exception | None) -> str:
+    if error is None:
+        return "Unknown error"
+    exc_type = type(error).__name__
+    if isinstance(error, httpx.HTTPStatusError):
+        code = error.response.status_code
+        phrase = error.response.reason_phrase or ""
+        msg = f"{code} {phrase}".strip()
+        return f"{exc_type} {msg}"
+    if isinstance(error, httpx.TimeoutException):
+        return exc_type
+    msg = str(error).strip()
+    return f"{exc_type} {msg}".strip()
+
+
 class AsyncOpenAICompatibleClient:
-    """Async OpenAI-compatible client for NVIDIA NIM and Nebius Token Factory."""
+    """Async OpenAI-compatible client for NVIDIA NIM, Nebius Token Factory, and Gemini."""
 
     def __init__(
         self,
         provider: str,
         base_url: str,
         api_key: str,
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.provider = provider
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self.timeout_seconds = timeout_seconds
+        env_timeout = os.getenv("LLM_TIMEOUT_S")
+        if env_timeout:
+            try:
+                self.timeout_seconds = float(env_timeout)
+            except ValueError:
+                self.timeout_seconds = 120.0
+        elif timeout_seconds is not None:
+            self.timeout_seconds = float(timeout_seconds)
+        else:
+            self.timeout_seconds = 120.0
         self._external_client = client
 
     async def chat(
@@ -417,8 +441,10 @@ class AsyncOpenAICompatibleClient:
         if tools:
             payload_req["tools"] = tools
 
+        delays = [2.0, 4.0]
+        max_attempts = 3
         last_error: Exception | None = None
-        for attempt in range(3):
+        for attempt in range(max_attempts):
             started = time.monotonic()
             try:
                 if self._external_client:
@@ -435,8 +461,6 @@ class AsyncOpenAICompatibleClient:
                             json=payload_req,
                         )
 
-                if response.status_code == 429 or response.status_code >= 500:
-                    raise httpx.HTTPStatusError("retryable response", request=response.request, response=response)
                 response.raise_for_status()
 
                 payload = response.json()
@@ -472,16 +496,16 @@ class AsyncOpenAICompatibleClient:
 
                 return result
             except httpx.HTTPStatusError as error:
-                if error.response.status_code != 429 and error.response.status_code < 500:
+                if error.response.status_code != 503 and error.response.status_code != 429 and error.response.status_code < 500:
                     raise
                 last_error = error
             except httpx.TimeoutException as error:
                 last_error = error
 
-            if attempt < 2:
-                await asyncio.sleep(0.25 * (2**attempt))
+            if attempt < len(delays):
+                await asyncio.sleep(delays[attempt])
 
-        raise RuntimeError(f"LLM request failed after retries: {last_error}")
+        raise RuntimeError(f"LLM request failed after {max_attempts} attempts: {_format_error(last_error)}")
 
 
 # Compatibility wrapper for synchronous test cases if any
