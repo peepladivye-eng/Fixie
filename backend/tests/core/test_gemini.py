@@ -21,12 +21,12 @@ def test_models_json_gemini_config() -> None:
     data = json.loads(models_path.read_text(encoding="utf-8"))
     gemini = data.get("providers", {}).get("gemini", {})
     assert gemini.get("base_url") == "https://generativelanguage.googleapis.com/v1beta/openai"
-    assert gemini.get("_note") == "dev only, TODO(VERIFY) model names in AI Studio"
+    assert gemini.get("_note") == "dev only, names taken from the key's own model list on 2026-10-30 and may change"
     models = gemini.get("models", {})
-    assert models.get("lightning") == "gemini-2.5-flash-lite"
-    assert models.get("super") == "gemini-2.5-flash"
-    assert models.get("ultra") == "gemini-2.5-flash"
-    assert models.get("none") == "gemini-2.5-flash-lite"
+    assert models.get("lightning") == "gemini-3.5-flash-lite"
+    assert models.get("super") == "gemini-3.8-flash"
+    assert models.get("ultra") == "gemini-3.8-flash"
+    assert models.get("none") == "gemini-3.5-flash-lite"
 
 
 def test_configured_client_gemini(monkeypatch: pytest.MonkeyPatch) -> None:
