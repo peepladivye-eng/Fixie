@@ -20,6 +20,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,16 +60,16 @@ async def main() -> None:
     run_id = make_run_id(provider, fixture)
     source = f"fixture:{fixture}"
     events: list[dict] = []
-    seq = 0
+    # Match emitter.py: _seq starts at -1, incremented before write → first seq is 0
+    seq = -1
 
     async def emit(event_type: str, data: dict) -> None:
         nonlocal seq
         seq += 1
-        ts = time.time()
         envelope = {
             "run_id": run_id,
             "seq": seq,
-            "ts": ts,
+            "ts": datetime.now(timezone.utc).isoformat(),
             "type": event_type,
             "data": data,
         }
@@ -103,7 +104,17 @@ async def main() -> None:
     with out_path.open("w", encoding="utf-8") as fh:
         for envelope in events:
             fh.write(json.dumps(envelope) + "\n")
-    print(f"replay written → {out_path}")
+    print(f"replay written -> {out_path}")
+
+    # Validate the written file against the schema
+    from tools.validate_events import validate_file  # noqa: PLC0415
+    ok, errors = validate_file(str(out_path))
+    if ok:
+        print("schema OK")
+    else:
+        print(f"schema ERRORS ({len(errors)}):")
+        for err in errors:
+            print(f"  {err}")
 
 
 if __name__ == "__main__":
