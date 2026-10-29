@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
-import { Search, Home, BarChart2, Play, Terminal } from "lucide-react";
+import { Search, Home, BarChart2, Play, Terminal, Info } from "lucide-react";
 
 interface ShowcaseItem {
   id: string;
@@ -106,6 +106,14 @@ export function CommandPalette() {
               >
                 <BarChart2 size={15} style={{ color: "var(--accent)" }} />
                 <span>Evaluation Benchmark (/eval)</span>
+              </Command.Item>
+              <Command.Item
+                onSelect={() => navigate("/about")}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors aria-selected:bg-[var(--border)]"
+                style={{ color: "var(--text)" }}
+              >
+                <Info size={15} style={{ color: "var(--text-muted)" }} />
+                <span>About Fixie (/about)</span>
               </Command.Item>
             </Command.Group>
 

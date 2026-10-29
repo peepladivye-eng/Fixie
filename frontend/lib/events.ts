@@ -87,6 +87,8 @@ export interface RunState {
   winner: string | null;
   cost_total: number;
   cost_by_tier: Record<ModelTier, number>;
+  /** Distinct model names seen in llm.usage events, in order of first appearance. */
+  models_used: string[];
   searches: SearchItem[];
   diff: string | null;
   root_cause: string | null;
@@ -121,6 +123,7 @@ export function createInitialState(runId: string | null = null): RunState {
     winner: null,
     cost_total: 0,
     cost_by_tier: { lightning: 0, super: 0, ultra: 0, none: 0 },
+    models_used: [],
     searches: [],
     diff: null,
     root_cause: null,
@@ -180,10 +183,15 @@ export function foldEvent(state: RunState, event: unknown): RunState {
       const isCached = Boolean(ev.data.cached);
       const cost = isCached ? 0 : (ev.data.cost_usd ?? 0);
       const tier = inferTierFromModel(ev.data.model, state.current_tier);
+      const modelName = ev.data.model;
+      const models_used = state.models_used.includes(modelName)
+        ? state.models_used
+        : [...state.models_used, modelName];
       return {
         ...state, ...common,
         cost_total: Number((state.cost_total + cost).toFixed(6)),
         cost_by_tier: { ...state.cost_by_tier, [tier]: Number((state.cost_by_tier[tier] + cost).toFixed(6)) },
+        models_used,
       };
     }
 
