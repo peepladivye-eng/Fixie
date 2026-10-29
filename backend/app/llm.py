@@ -260,8 +260,8 @@ class FakeChatClient:
             "triage": '{"summary":"Duration parser rejects seconds","risk":"low"}',
             "reproduce": '{"command":"python -m pytest -q","expected":"a seconds test fails"}',
             "diagnose": '{"root_cause":"The parser handles minutes and hours but not seconds."}',
-            "patch": '{"diff":"--- a/parse_duration.py\\n+++ b/parse_duration.py\\n@@ -3,5 +3,7 @@\\n     if unit == \\"m\\":\\n         return int(amount) * 60\\n     if unit == \\"h\\":\\n         return int(amount) * 3600\\n+    if unit == \\"s\\":\\n+        return int(amount)\\n     raise ValueError(\\"unsupported duration unit\\")\\n","summary":"Handle seconds explicitly."}',
-            "patch_alt": '{"diff":"--- a/parse_duration.py\\n+++ b/parse_duration.py\\n@@ -3,5 +3,7 @@\\n     if unit == \\"m\\":\\n         return int(amount) * 60\\n     if unit == \\"h\\":\\n         return int(amount) * 3600\\n+    if unit == \\"s\\":\\n+        return int(amount)\\n     raise ValueError(\\"unsupported duration unit\\")\\n","summary":"Handle seconds explicitly."}',
+            "patch": '{"edits":[{"path":"parse_duration.py","old":"    raise ValueError(\\"unsupported duration unit\\")","new":"    if unit == \\"s\\":\\n        return int(amount)\\n    raise ValueError(\\"unsupported duration unit\\")"}],"summary":"Handle seconds explicitly."}',
+            "patch_alt": '{"edits":[{"path":"parse_duration.py","old":"    raise ValueError(\\"unsupported duration unit\\")","new":"    if unit == \\"s\\":\\n        return int(amount)\\n    raise ValueError(\\"unsupported duration unit\\")"}],"summary":"Handle seconds explicitly."}',
             "deliver": '{"pr_title":"Fix duration parser for seconds","summary":"Added support for second unit."}',
         }
         text = canned.get(role, "{}")
