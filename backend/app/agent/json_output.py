@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable
-from typing import TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -32,6 +32,25 @@ def validated_response(model: type[T], ask: Callable[[str], str], prompt: str) -
     for _ in range(3):
         try:
             return model.model_validate(extract_json(ask(current)))
+        except (ValueError, ValidationError) as error:
+            last_error = str(error)
+            current = f"{prompt}\nYour previous output was invalid: {last_error}\nReturn only valid JSON matching the schema."
+    raise ValueError(f"model response could not be validated after 3 attempts: {last_error}")
+
+
+async def async_validated_response(
+    model: type[T],
+    ask: Callable[[str], Awaitable[Any]],
+    prompt: str,
+) -> T:
+    """Ask at most three times asynchronously, including the prior validation error on retries."""
+    current = prompt
+    last_error = "invalid output"
+    for _ in range(3):
+        try:
+            res = await ask(current)
+            raw = res.text if hasattr(res, "text") else str(res)
+            return model.model_validate(extract_json(raw))
         except (ValueError, ValidationError) as error:
             last_error = str(error)
             current = f"{prompt}\nYour previous output was invalid: {last_error}\nReturn only valid JSON matching the schema."

@@ -1,3 +1,2 @@
-Return only JSON matching: {{"diff": string, "summary": string}}.
-Provide an alternative patch approach solving the failure. `diff` must be a valid unified diff using repository-relative paths. Issue:
+Return only JSON: {{"edits": [{{"path": string, "old": string, "new": string}}], "summary": string}}, where "old" is an exact snippet that appears exactly once in the file at "path" (relative to the repo root) and "new" replaces it. Provide an alternative patch approach solving the failure. Issue:
 {issue}

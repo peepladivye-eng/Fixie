@@ -29,9 +29,16 @@ class Diagnosis(BaseModel):
     root_cause: str
 
 
+class Edit(BaseModel):
+    path: str
+    old: str
+    new: str
+
+
 class Patch(BaseModel):
-    diff: str
-    summary: str
+    edits: list[Edit] = []
+    diff: str = ""
+    summary: str = ""
 
 
 def validate_diff(diff: str) -> str:

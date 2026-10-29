@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import difflib
 import json
 import os
 import re
@@ -9,7 +10,8 @@ import time
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from app.agent.runner import validate_diff
+from app.agent.json_output import async_validated_response
+from app.agent.runner import Edit, Patch, validate_diff
 from app.agent.scoring import calculate_patch_score
 from app.llm import ChatClient
 from app.sandbox import LocalSandbox
@@ -27,12 +29,41 @@ def _sanitize_keys(text: str) -> str:
     text = re.sub(r"AIza[0-9A-Za-z-_]{35}", "[REDACTED]", text)
     text = re.sub(r"sk-[A-Za-z0-9-_]{20,}", "[REDACTED]", text)
     text = re.sub(r"(?i)(?:bearer\s+)[A-Za-z0-9_\-\.]{16,}", "Bearer [REDACTED]", text)
-    text = re.sub(r"(?i)(api[_-]?key|token|secret)[\s:=]+([A-Za-z0-9_\-\.]{12,})", r"\1=[REDACTED]", text)
-    return text
+    return re.sub(r"(?i)(api[_-]?key|token|secret)[\s:=]+([A-Za-z0-9_\-\.]{12,})", r"\1=[REDACTED]", text)
+
+
+def is_test_file(path: str, repro_test: str | None = None) -> bool:
+    """Return True if path points to visible test files protected by the integrity rule."""
+    norm = path.replace("\\", "/").lstrip("/")
+    if repro_test and norm == repro_test.replace("\\", "/").lstrip("/"):
+        return False
+    parts = Path(norm).parts
+    name = Path(norm).name
+    return (
+        "tests" in parts
+        or norm.startswith("tests/")
+        or (name.startswith("test_") and name.endswith(".py"))
+        or name.endswith("_test.py")
+        or name == "conftest.py"
+    )
+
+
+def normalise_diff_headers(diff: str) -> str:
+    """Ensure repository-relative unified diff headers have a/ and b/ prefixes."""
+    new_lines = []
+    for line in diff.splitlines():
+        if line.startswith("--- ") and not line.startswith(("--- a/", "--- /dev/null")):
+            raw = line[4:].strip().removeprefix("./")
+            new_lines.append(f"--- a/{raw}" if not raw.startswith("/") else line)
+        elif line.startswith("+++ ") and not line.startswith(("+++ b/", "+++ /dev/null")):
+            raw = line[4:].strip().removeprefix("./")
+            new_lines.append(f"+++ b/{raw}" if not raw.startswith("/") else line)
+        else:
+            new_lines.append(line)
+    return "\n".join(new_lines) + ("\n" if diff.endswith("\n") else "")
 
 
 def get_strategies_for_round(round_number: int, showcase: bool = False, baseline: bool = False) -> list[str]:
-    """Return strategy labels for round_number (1-indexed) or showcase mode."""
     if baseline:
         return ["patch"]
     if showcase or round_number >= 2:
@@ -41,17 +72,12 @@ def get_strategies_for_round(round_number: int, showcase: bool = False, baseline
 
 
 def _load_prompt(strategy: str, issue_text: str, failure_summary: str = "", previous_diff: str = "") -> str:
-    """Build a prompt string for the given strategy.
-
-    On retry sends only failure summary and previous diff — never the full conversation.
-    """
     if failure_summary and previous_diff:
         return (
-            f"Previous patch failed tests:\n{failure_summary}\n\n"
-            f"Previous Diff:\n{previous_diff}\n\n"
-            'Return only JSON matching: {"diff": string, "summary": string} with a corrected unified diff.'
+            f"Previous patch failed tests:\n{failure_summary}\n\nPrevious Diff:\n{previous_diff}\n\n"
+            'Return only JSON: {"edits": [{"path": string, "old": string, "new": string}], "summary": string}, '
+            'where "old" is an exact snippet that appears exactly once in the file at "path" (relative to the repo root) and "new" replaces it.'
         )
-
     prompt_file = PROMPTS_DIR / f"{strategy.replace('-', '_')}.txt"
     if prompt_file.is_file():
         template = prompt_file.read_text(encoding="utf-8")
@@ -59,7 +85,6 @@ def _load_prompt(strategy: str, issue_text: str, failure_summary: str = "", prev
             return template.format(issue=issue_text)
         except Exception:
             return template.replace("{issue}", issue_text)
-
     return strategy
 
 
@@ -74,6 +99,7 @@ async def run_branch_round(
     emit: Emit,
     failure_summary: str = "",
     previous_diff: str = "",
+    repro_test_file: str | None = None,
 ) -> dict[str, Any]:
     """Run K candidates in parallel, cancel losers as soon as one wins."""
     import shutil
@@ -96,88 +122,85 @@ async def run_branch_round(
         if context and not (failure_summary and previous_diff):
             prompt += f"\n\nContext:\n{context}\n\nRoot Cause:\n{root_cause}"
 
-        # Ask model for patch — this is the longest await; cancellation hits here
-        try:
-            chat_result = await client.chat("patch", prompt)
-            raw_reply = chat_result.text.strip() if hasattr(chat_result, "text") else str(chat_result).strip()
-        except Exception as exc:
-            reason = f"model call failed: {exc}"
-            await emit("terminal.chunk", {"stream": "stderr", "text": reason, "branch_id": branch_id})
-            await emit(
-                "branch.result",
-                {
-                    "branch_id": branch_id,
-                    "tests_passed": False,
-                    "diff_lines": 0,
-                    "sandbox_seconds": 0.0,
-                    "score": 0.0,
-                },
-            )
-            return {
-                "branch_id": branch_id,
-                "strategy": strategy,
-                "tests_passed": False,
-                "diff_lines": 0,
-                "sandbox_seconds": 0.0,
-                "score": 0.0,
-                "sort_key": (-1, 0, 0),
-                "diff": "",
-                "status": "rejected",
-            }
+        latest_raw_reply = ""
 
-        sanitized_reply = _sanitize_keys(raw_reply)
-        raw_diff = ""
-        parse_err: str | None = None
-        try:
-            parsed = json.loads(raw_reply)
-            if isinstance(parsed, dict):
-                raw_diff = parsed.get("diff", "")
-                if not raw_diff:
-                    parse_err = "missing 'diff' in json response"
-            else:
-                raw_diff = raw_reply
-        except Exception:
-            raw_diff = raw_reply
+        async def ask_model(p: str) -> str:
+            nonlocal latest_raw_reply
+            chat_result = await client.chat("patch", p)
+            latest_raw_reply = chat_result.text.strip() if hasattr(chat_result, "text") else str(chat_result).strip()
+            return latest_raw_reply
 
-        diff = ""
-        diff_valid = False
-        val_err = parse_err
-        if not val_err:
-            try:
-                diff = validate_diff(raw_diff)
-                diff_valid = True
-            except ValueError as exc:
-                val_err = str(exc)
-
-        if not diff_valid:
-            # Status: "rejected" when model reply is not parseable or validate_diff fails
-            err_msg = f"invalid diff: {val_err}\n{sanitized_reply[:400]}"
+        async def reject(reason: str) -> dict[str, Any]:
+            sanitized = _sanitize_keys(latest_raw_reply)
+            err_msg = f"invalid diff: {reason}\n{sanitized[:400]}"
             await emit("terminal.chunk", {"stream": "stderr", "text": err_msg, "branch_id": branch_id})
-            await emit(
-                "branch.result",
-                {
-                    "branch_id": branch_id,
-                    "tests_passed": False,
-                    "diff_lines": 0,
-                    "sandbox_seconds": 0.0,
-                    "score": 0.0,
-                },
-            )
-            return {
-                "branch_id": branch_id,
-                "strategy": strategy,
-                "tests_passed": False,
-                "diff_lines": 0,
-                "sandbox_seconds": 0.0,
-                "score": 0.0,
-                "sort_key": (-1, 0, 0),
-                "diff": "",
-                "status": "rejected",
-            }
+            await emit("branch.result", {"branch_id": branch_id, "tests_passed": False, "diff_lines": 0, "sandbox_seconds": 0.0, "score": 0.0})
+            return {"branch_id": branch_id, "strategy": strategy, "tests_passed": False, "diff_lines": 0, "sandbox_seconds": 0.0, "score": 0.0, "sort_key": (-1, 0, 0), "diff": "", "status": "rejected"}
 
-        # Apply patch and run tests in worker thread so subprocesses don't block event loop
-        apply_res = await asyncio.to_thread(sandbox.apply_diff, diff)
-        diff_lines = len(diff.splitlines())
+        try:
+            patch = await async_validated_response(Patch, ask_model, prompt)
+        except Exception as exc:
+            return await reject(str(exc))
+
+        diff, diff_lines, apply_ok = "", 0, False
+        if patch.edits:
+            edits_by_file: dict[str, list[Edit]] = {}
+            for edit in patch.edits:
+                if is_test_file(edit.path, repro_test=repro_test_file):
+                    return await reject(f"integrity rule: modifying test file '{edit.path}' is forbidden")
+                norm = edit.path.replace("\\", "/").lstrip("/")
+                if ".." in norm or norm.startswith(("/", "\\")):
+                    return await reject(f"unsafe file path '{edit.path}'")
+                if not (sandbox.workdir / norm).is_file():
+                    return await reject(f"file not found: '{edit.path}'")
+                edits_by_file.setdefault(norm, []).append(edit)
+
+            diff_parts = []
+            for norm, file_edits in edits_by_file.items():
+                orig_content = sandbox.read_file(norm)
+                current_content = orig_content
+                for edit in file_edits:
+                    count = current_content.count(edit.old)
+                    if count == 0:
+                        return await reject(f"snippet 'old' not found in '{edit.path}'")
+                    if count > 1:
+                        return await reject(f"snippet 'old' appears {count} times (must be unique) in '{edit.path}'")
+                    current_content = current_content.replace(edit.old, edit.new, 1)
+
+                sandbox.write_file(norm, current_content)
+                part = difflib.unified_diff(
+                    orig_content.splitlines(keepends=True),
+                    current_content.splitlines(keepends=True),
+                    fromfile=f"a/{norm}",
+                    tofile=f"b/{norm}",
+                )
+                diff_parts.extend(part)
+
+            diff = "".join(diff_parts)
+            try:
+                diff = validate_diff(diff)
+            except ValueError as exc:
+                return await reject(str(exc))
+            diff_lines = len(diff.splitlines())
+            apply_ok = True
+
+        elif patch.diff:
+            normalized = normalise_diff_headers(patch.diff)
+            for line in normalized.splitlines():
+                if line.startswith(("--- a/", "+++ b/")):
+                    p = line[6:].strip()
+                    if is_test_file(p, repro_test=repro_test_file):
+                        return await reject(f"integrity rule: modifying test file '{p}' is forbidden")
+            try:
+                diff = validate_diff(normalized)
+            except ValueError as exc:
+                return await reject(str(exc))
+            diff_lines = len(diff.splitlines())
+            apply_res = await asyncio.to_thread(sandbox.apply_diff, diff)
+            apply_ok = (apply_res.returncode == 0)
+
+        else:
+            return await reject("response must contain 'edits' or 'diff'")
 
         t0 = time.monotonic()
         test_res = await asyncio.to_thread(sandbox.run, test_command)
@@ -185,16 +208,11 @@ async def run_branch_round(
         output = (test_res.stdout or "") + (test_res.stderr or "")
         await emit("terminal.chunk", {"stream": "stdout", "text": output, "branch_id": branch_id})
 
-        # Tests passed if apply succeeded (or was test diff) and test command returned 0
-        tests_passed = (test_res.returncode == 0) and (apply_res.returncode == 0 or test_command.startswith("python -c"))
-
+        tests_passed = (test_res.returncode == 0) and (apply_ok or test_command.startswith("python -c"))
         if not tests_passed:
-            # Status: "fail" when patch applies but tests fail
-            if apply_res.returncode != 0:
-                reason = f"patch apply failed: {(apply_res.stderr or apply_res.stdout).strip()}"
-            else:
-                reason = f"tests failed with exit code {test_res.returncode}"
-            err_msg = f"{reason}\n{sanitized_reply[:400]}"
+            reason = f"tests failed with exit code {test_res.returncode}"
+            sanitized = _sanitize_keys(latest_raw_reply)
+            err_msg = f"{reason}\n{sanitized[:400]}"
             await emit("terminal.chunk", {"stream": "stderr", "text": err_msg, "branch_id": branch_id})
 
         score, sort_key = calculate_patch_score(
@@ -239,7 +257,6 @@ async def run_branch_round(
     while pending:
         done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
         for task in done:
-            # Find this task's index
             idx = tasks.index(task)
             branch_id = f"candidate-{idx + 1}"
 
@@ -256,15 +273,12 @@ async def run_branch_round(
             res = task.result()
             completed_results.append(res)
 
-            # If this branch passes and no winner yet, cancel all pending tasks
             if res["tests_passed"] and not winner_found:
                 winner_found = True
                 for other_idx, other_task in enumerate(tasks):
-                    other_branch_id = f"candidate-{other_idx + 1}"
                     if other_task in pending and not other_task.done():
                         other_task.cancel()
 
-    # Collect any remaining cancellations that weren't caught above
     for idx, task in enumerate(tasks):
         branch_id = f"candidate-{idx + 1}"
         if task.cancelled() and branch_id not in cancelled_ids:
