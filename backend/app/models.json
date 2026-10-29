@@ -66,13 +66,13 @@
       }
     },
     "gemini": {
-      "_note": "dev only, TODO(VERIFY) model names in AI Studio",
+      "_note": "dev only, names taken from the key's own model list on 2026-10-30 and may change",
       "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
       "models": {
-        "lightning": "gemini-2.5-flash-lite",
-        "super": "gemini-2.5-flash",
-        "ultra": "gemini-2.5-flash",
-        "none": "gemini-2.5-flash-lite"
+        "lightning": "gemini-3.5-flash-lite",
+        "super": "gemini-3.8-flash",
+        "ultra": "gemini-3.8-flash",
+        "none": "gemini-3.5-flash-lite"
       }
     }
   },
