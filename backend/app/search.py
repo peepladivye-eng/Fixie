@@ -22,7 +22,7 @@ class TavilySearch:
         if not self.api_key:
             raise RuntimeError("TAVILY_API_KEY is required for an uncached Tavily search")
         # TODO(VERIFY): Tavily REST endpoint and payload contract.
-        response = httpx.post("https://api.tavily.com/search", json={"api_key": self.api_key, "query": query}, timeout=30.0)
+        response = httpx.post("https://api.tavily.com/search", json={"api_key": self.api_key, "query": query, "max_results": 3}, headers={"Authorization": f"Bearer {self.api_key}"}, timeout=30.0)
         response.raise_for_status()
         results = response.json().get("results", [])
         self.cache_dir.mkdir(parents=True, exist_ok=True)

@@ -27,17 +27,24 @@ async def run_diagnose(
     search_used = False
     failure_str = json.dumps(failure_summary) if isinstance(failure_summary, dict) else str(failure_summary)
 
-    # Check if external module or unexpected exception is named
-    external_match = re.search(r"ModuleNotFoundError: No module named '([^']+)'", failure_str)
-    if external_match and search_client is not None:
-        query = f"python {external_match.group(1)} module usage fix"
+    # One real Tavily search per run when a key is configured
+    search_notes = ""
+    if search_client is not None and getattr(search_client, "api_key", None):
+        match = re.search(r"\b([A-Za-z]+Error)\b[:\s]*([^\n]{0,100})", failure_str)
+        source = " ".join(match.groups()) if match else failure_str
+        query = re.sub(r"[^A-Za-z0-9_ .:'-]", " ", "python " + source)
+        query = re.sub(r"\s+", " ", query).strip()[:180]
         try:
             results = search_client.search(query)
-            if emit is not None and results:
+            if results:
                 first = results[0] if isinstance(results[0], dict) else {}
-                title = str(first.get("title", f"Information about {external_match.group(1)}"))
-                url = str(first.get("url", "https://docs.python.org/3/"))
-                await emit("search.result", {"query": query, "title": title, "url": url, "used": True})
+                snippet = str(first.get("content", ""))[:400]
+                title = str(first.get("title", "Search result"))
+                url = str(first.get("url", ""))
+                if snippet:
+                    search_notes = f"\n\nSearch notes (from {url}):\n{snippet}\n"
+                if emit is not None:
+                    await emit("search.result", {"query": query, "title": title, "url": url, "used": bool(snippet)})
         except Exception:
             pass
 
@@ -45,7 +52,7 @@ async def run_diagnose(
         f"Issue:\n{issue_text}\n\n"
         f"Failure Summary:\n{failure_str}\n\n"
         f"Relevant Code Context:\n{context}\n\n"
-        "Diagnose the root cause of the bug in concise terms."
+        f"{search_notes}\nDiagnose the root cause of the bug in concise terms."
     )
 
     result = await client.chat("diagnose", prompt)
